@@ -21,11 +21,42 @@ func (v *Vec) Len() float32 {
 	return float32(math.Sqrt(float64(v.LenSq())))
 }
 
+func VecAdd(a, b Vec) Vec {
+	a.Add(b)
+	return a
+}
+
+func VecSub(a, b Vec) Vec {
+	a.Sub(b)
+	return a
+}
+
+func (v *Vec) Add(a Vec) {
+	v.x += a.x
+	v.y += a.y
+	v.z += a.z
+}
+
+func (v *Vec) Sub(a Vec) {
+	v.x -= a.x
+	v.y -= a.y
+	v.z -= a.z
+}
+
+func (v *Vec) Mul(s float32) {
+	v.x *= s
+	v.y *= s
+	v.z *= s
+}
+
+func (v *Vec) Div(s float32) {
+	v.x /= s
+	v.y /= s
+	v.z /= s
+}
+
 func (v *Vec) Normalize() {
-	l := v.Len()
-	v.x /= l
-	v.y /= l
-	v.z /= l
+	v.Div(v.Len())
 }
 
 type Ray struct {
@@ -51,6 +82,10 @@ type Cylinder struct {
 	dir      Vec
 	height   float32
 	material Material
+}
+
+func NewCylinder(a, b Vec) Cylinder {
+	return Cylinder{}
 }
 
 func (c *Cylinder) Intersect(ray Ray) (bool, Vec, Vec) {
@@ -89,11 +124,34 @@ var elements map[string]Element = map[string]Element{
 }
 
 type Molecule struct {
-	atoms []Atom
-	bonds []Bond
+	atoms []*Atom
+	bonds []*Bond
+}
+
+func (m *Molecule) Center() {
+	var c Vec
+	for _, a := range m.atoms {
+		c.Add(a.sphere.pos)
+	}
+	c.Div(float32(len(m.atoms)))
+	for _, a := range m.atoms {
+		a.sphere.pos.Sub(c)
+	}
 }
 
 func (m *Molecule) MakeBonds() {
+	const bndist = 1.6
+	const bndist2 = bndist * bndist
+	for _, a := range m.atoms {
+		for _, b := range m.atoms {
+			pa := a.sphere.pos
+			pb := b.sphere.pos
+			if d := VecSub(pa, pb); d.LenSq() < bndist2 {
+				bnd := Bond{a, b, NewCylinder(pa, pb)}
+				m.bonds = append(m.bonds, &bnd)
+			}
+		}
+	}
 }
 
 func (m *Molecule) Intersect(ray Ray) (bool, Vec, Vec) {
@@ -119,7 +177,7 @@ func NewMolecule(path string) (error, *Molecule) {
 			return fmt.Errorf("unknown element: %s", s), nil
 		}
 		atom := Atom{s, Sphere{v, e.radius, e.material}}
-		m.atoms = append(m.atoms, atom)
+		m.atoms = append(m.atoms, &atom)
 	}
 	if err = sc.Err(); err != nil {
 		return err, nil
@@ -127,6 +185,7 @@ func NewMolecule(path string) (error, *Molecule) {
 	if len(m.atoms) == 0 {
 		return fmt.Errorf("%s: no atoms found", path), nil
 	}
+	m.Center()
 	m.MakeBonds()
 	return nil, m
 }
