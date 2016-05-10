@@ -138,7 +138,7 @@ func NewView(width, height int, radius float32) *View {
 func (v *View) Rotate(dx, dy, dz float32) {
 }
 
-func (v *View) Advance() {
+func (v *View) Advance(angxyz [3]float32) {
 }
 
 func (v *View) NewRay(x, y int) Ray {
@@ -248,11 +248,21 @@ func NewMolecule(path string) (*Molecule, error) {
 
 type Renderer struct {
 	shapes []Shape
-	view   View
+	view   *View
+	bg     color.RGBA
 }
 
-func NewRenderer(g []Shape) *Renderer {
-	return &Renderer{}
+func NewRenderer(shapes []Shape, bg color.RGBA, w, h int) *Renderer {
+	var r float32
+	return &Renderer{
+		shapes: shapes,
+		view:   NewView(w, h, r),
+		bg:     bg,
+	}
+}
+
+func (r *Renderer) Advance(angxyz [3]float32) {
+	r.view.Advance(angxyz)
 }
 
 func (r *Renderer) Render() image.Image {
@@ -268,48 +278,52 @@ func MakePaletted(img image.Image) *image.Paletted {
 	return pm
 }
 
-func RenderAnimation(r *Renderer, loopTime int) *gif.GIF {
+func RenderAnimation(r *Renderer, loopTime int, rx, ry, rz bool) *gif.GIF {
 	const FPS = 50
 	nframes := loopTime * FPS
+	ang := 2.0 * math.Pi / float32(nframes)
+	angxyz := [3]float32{}
+	if rx {
+		angxyz[0] = ang
+	}
+	if ry {
+		angxyz[1] = ang
+	}
+	if rz {
+		angxyz[2] = ang
+	}
 	var g gif.GIF
 	for i := 0; i < nframes; i++ {
 		img := r.Render()
 		g.Image = append(g.Image, MakePaletted(img))
 		g.Delay = append(g.Delay, 100/FPS)
-		r.view.Advance()
+		r.Advance(angxyz)
 	}
 	return &g
 }
 
-type Color color.RGBA
-
-func (c *Color) Set(val string) error {
-	_, err := fmt.Sscanf(val, "{%d,%d,%d}", &c.R, &c.G, &c.B)
-	return err
-}
-
-func (c Color) String() string {
-	return fmt.Sprintf("{%d,%d,%d}", c.R, c.G, c.B)
-}
-
-var iFlag *string = flag.String("i", "input.xyz", "input file")
-var oFlag *string = flag.String("o", "output.gif", "output file")
+var iFlag *string = flag.String("i", "input.xyz", "input file name")
+var oFlag *string = flag.String("o", "output.gif", "output file name")
 var wFlag *int = flag.Int("w", 300, "output image width")
 var hFlag *int = flag.Int("h", 200, "output image height")
-var xFlag *int = flag.Int("x", 0, "rotation speed along x axis")
-var yFlag *int = flag.Int("y", 100, "rotation speed along y axis")
-var zFlag *int = flag.Int("z", 0, "rotation speed along z axis")
+var xFlag *bool = flag.Bool("x", false, "rotate along x axis")
+var yFlag *bool = flag.Bool("y", true, "rotate along y axis")
+var zFlag *bool = flag.Bool("z", false, "rotate along z axis")
 var tFlag *int = flag.Int("t", 10, "animation loop time in seconds")
-var bFlag Color
+var rFlag *uint = flag.Uint("r", 0, "background color red component")
+var gFlag *uint = flag.Uint("g", 0, "background color green component")
+var bFlag *uint = flag.Uint("b", 0, "background color blue component")
 
 func main() {
-	flag.Var(&bFlag, "b", "background color")
 	flag.Parse()
 	if *wFlag < 1 || *hFlag < 1 {
 		log.Fatal("image width and height must be positive")
 	}
 	if *tFlag < 1 {
 		log.Fatal("loop time must be positive")
+	}
+	if *rFlag > 255 || *gFlag > 255 || *bFlag > 255 {
+		log.Fatal("color component must be in the [0, 255] range")
 	}
 	m, err := NewMolecule(*iFlag)
 	if err != nil {
@@ -320,8 +334,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer f.Close()
-	r := NewRenderer(m.Geometry())
-	g := RenderAnimation(r, *tFlag)
+	bg := color.RGBA{uint8(*rFlag), uint8(*gFlag), uint8(*bFlag), 255}
+	r := NewRenderer(m.Geometry(), bg, *wFlag, *hFlag)
+	g := RenderAnimation(r, *tFlag, *xFlag, *yFlag, *zFlag)
 	if err = gif.EncodeAll(f, g); err != nil {
 		log.Fatal(err)
 	}
