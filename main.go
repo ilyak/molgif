@@ -4,10 +4,27 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"image"
 	"image/color"
+	"image/gif"
+	"log"
 	"math"
 	"os"
 )
+
+type Mat struct {
+	xx, xy, xz float32
+	yx, yy, yz float32
+	zx, zy, zz float32
+}
+
+func MatVec(m Mat, v Vec) Vec {
+	return Vec{
+		m.xx*v.x + m.xy*v.y + m.xz*v.z,
+		m.yx*v.x + m.yy*v.y + m.yz*v.z,
+		m.zx*v.x + m.zy*v.y + m.zz*v.z,
+	}
+}
 
 type Vec struct {
 	x, y, z float32
@@ -29,6 +46,10 @@ func VecAdd(a, b Vec) Vec {
 func VecSub(a, b Vec) Vec {
 	a.Sub(b)
 	return a
+}
+
+func VecDot(a, b Vec) float32 {
+	return a.x*b.x + a.y*b.y + a.z*b.z
 }
 
 func (v *Vec) Add(a Vec) {
@@ -60,11 +81,11 @@ func (v *Vec) Normalize() {
 }
 
 type Ray struct {
-	dir, origin Vec
+	dir, origin Vec // dir is normalized
 }
 
 type Shape interface {
-	Intersect(Ray) (bool, pt Vec, n Vec)
+	Intersect(Ray) (bool, Vec, Vec)
 }
 
 type Sphere struct {
@@ -78,10 +99,10 @@ func (s *Sphere) Intersect(ray Ray) (bool, Vec, Vec) {
 }
 
 type Cylinder struct {
-	center   Vec
-	dir      Vec
-	height   float32
-	material Material
+	center         Vec
+	dir            Vec
+	height, radius float32
+	material       Material
 }
 
 func NewCylinder(a, b Vec) Cylinder {
@@ -92,8 +113,30 @@ func (c *Cylinder) Intersect(ray Ray) (bool, Vec, Vec) {
 	return false, Vec{}, Vec{}
 }
 
-type Camera struct {
-	pos, dir Vec
+type View struct {
+	width, height        int
+	pos, look, right, up Vec
+	viewdist             float32
+}
+
+func NewView(width, height int, radius float32) *View {
+	pos := Vec{0, 0, -radius}
+	v := View{
+		width:  width,
+		height: height,
+		pos:    pos,
+		look:   Vec{0, 0, 1},
+		right:  Vec{1, 0, 0},
+		up:     Vec{0, 1, 0},
+	}
+	return &v
+}
+
+func (v *View) Rotate(dx, dy, dz float32) {
+}
+
+func (v *View) NewRay(x, y int) Ray {
+	return Ray{}
 }
 
 type Material struct {
@@ -101,13 +144,13 @@ type Material struct {
 }
 
 type Atom struct {
-	name   string
-	sphere Sphere
+	name  string
+	shape Sphere
 }
 
 type Bond struct {
-	a, b     *Atom
-	cylinder Cylinder
+	a, b  *Atom
+	shape Cylinder
 }
 
 type Element struct {
@@ -131,11 +174,11 @@ type Molecule struct {
 func (m *Molecule) Center() {
 	var c Vec
 	for _, a := range m.atoms {
-		c.Add(a.sphere.pos)
+		c.Add(a.shape.pos)
 	}
 	c.Div(float32(len(m.atoms)))
 	for _, a := range m.atoms {
-		a.sphere.pos.Sub(c)
+		a.shape.pos.Sub(c)
 	}
 }
 
@@ -144,8 +187,8 @@ func (m *Molecule) MakeBonds() {
 	const bndist2 = bndist * bndist
 	for _, a := range m.atoms {
 		for _, b := range m.atoms {
-			pa := a.sphere.pos
-			pb := b.sphere.pos
+			pa := a.shape.pos
+			pb := b.shape.pos
 			if d := VecSub(pa, pb); d.LenSq() < bndist2 {
 				bnd := Bond{a, b, NewCylinder(pa, pb)}
 				m.bonds = append(m.bonds, &bnd)
@@ -154,14 +197,21 @@ func (m *Molecule) MakeBonds() {
 	}
 }
 
-func (m *Molecule) Intersect(ray Ray) (bool, Vec, Vec) {
-	return false, Vec{}, Vec{}
+func (m *Molecule) Geometry() []Shape {
+	var g []Shape
+	for _, a := range m.atoms {
+		g = append(g, &a.shape)
+	}
+	for _, b := range m.bonds {
+		g = append(g, &b.shape)
+	}
+	return g
 }
 
-func NewMolecule(path string) (error, *Molecule) {
+func NewMolecule(path string) (*Molecule, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	defer f.Close()
 	m := new(Molecule)
@@ -174,20 +224,51 @@ func NewMolecule(path string) (error, *Molecule) {
 		fmt.Sscanf(sc.Text(), "%s %f %f %f", &s, &v.x, &v.y, &v.z)
 		e, ok := elements[s]
 		if !ok {
-			return fmt.Errorf("unknown element: %s", s), nil
+			return nil, fmt.Errorf("unknown element: %s", s)
 		}
 		atom := Atom{s, Sphere{v, e.radius, e.material}}
 		m.atoms = append(m.atoms, &atom)
 	}
 	if err = sc.Err(); err != nil {
-		return err, nil
+		return nil, err
 	}
 	if len(m.atoms) == 0 {
-		return fmt.Errorf("%s: no atoms found", path), nil
+		return nil, fmt.Errorf("%s: no atoms found", path)
 	}
 	m.Center()
 	m.MakeBonds()
-	return nil, m
+	return m, nil
+}
+
+type Renderer struct {
+	shapes []Shape
+	view   View
+}
+
+func NewRenderer(g []Shape) *Renderer {
+	return &Renderer{}
+}
+
+func (r *Renderer) Render() image.Image {
+	rect := image.Rect(0, 0, r.view.width, r.view.height)
+	img := image.NewRGBA(rect)
+	return img
+}
+
+func MakePaletted(img image.Image) *image.Paletted {
+	return nil
+}
+
+func RenderAnimation(r *Renderer, loopTime int) *gif.GIF {
+	const FPS = 50
+	nframes := loopTime * FPS
+	var g gif.GIF
+	for i := 0; i < nframes; i++ {
+		img := r.Render()
+		g.Image = append(g.Image, MakePaletted(img))
+		g.Delay = append(g.Delay, 100/FPS)
+	}
+	return &g
 }
 
 type Color color.RGBA
@@ -208,16 +289,30 @@ var hFlag *int = flag.Int("h", 200, "output image height")
 var xFlag *int = flag.Int("x", 0, "rotation speed along x axis")
 var yFlag *int = flag.Int("y", 100, "rotation speed along y axis")
 var zFlag *int = flag.Int("z", 0, "rotation speed along z axis")
+var tFlag *int = flag.Int("t", 10, "animation loop time in seconds")
 var bFlag Color
 
 func main() {
 	flag.Var(&bFlag, "b", "background color")
 	flag.Parse()
-	err, m := NewMolecule(*iFlag)
-	if err != nil {
-		fmt.Println(err)
-		return
+	if *wFlag < 1 || *hFlag < 1 {
+		log.Fatal("image width and height must be positive")
 	}
-	fmt.Printf("%v\n", m)
-	fmt.Println(bFlag)
+	if *tFlag < 1 {
+		log.Fatal("loop time must be positive")
+	}
+	m, err := NewMolecule(*iFlag)
+	if err != nil {
+		log.Fatal(err)
+	}
+	f, err := os.Create(*oFlag)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	r := NewRenderer(m.Geometry())
+	g := RenderAnimation(r, *tFlag)
+	if err = gif.EncodeAll(f, g); err != nil {
+		log.Fatal(err)
+	}
 }
