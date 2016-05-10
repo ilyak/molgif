@@ -302,19 +302,18 @@ func RenderAnimation(r *Renderer, loopTime int, rx, ry, rz bool) *gif.GIF {
 	return &g
 }
 
-var iFlag *string = flag.String("i", "input.xyz", "input file name")
-var oFlag *string = flag.String("o", "output.gif", "output file name")
-var wFlag *int = flag.Int("w", 300, "output image width")
-var hFlag *int = flag.Int("h", 200, "output image height")
-var xFlag *bool = flag.Bool("x", false, "rotate along x axis")
-var yFlag *bool = flag.Bool("y", true, "rotate along y axis")
-var zFlag *bool = flag.Bool("z", false, "rotate along z axis")
-var tFlag *int = flag.Int("t", 10, "animation loop time in seconds")
-var rFlag *uint = flag.Uint("r", 0, "background color red component")
-var gFlag *uint = flag.Uint("g", 0, "background color green component")
-var bFlag *uint = flag.Uint("b", 0, "background color blue component")
-
 func main() {
+	iFlag := flag.String("i", "input.xyz", "input file name")
+	oFlag := flag.String("o", "output.gif", "output file name")
+	wFlag := flag.Int("w", 300, "output image width")
+	hFlag := flag.Int("h", 200, "output image height")
+	xFlag := flag.Bool("x", false, "rotate along x axis")
+	yFlag := flag.Bool("y", true, "rotate along y axis")
+	zFlag := flag.Bool("z", false, "rotate along z axis")
+	tFlag := flag.Int("t", 10, "animation loop time in seconds")
+	rFlag := flag.Uint("r", 0, "background color red component")
+	gFlag := flag.Uint("g", 0, "background color green component")
+	bFlag := flag.Uint("b", 0, "background color blue component")
 	flag.Parse()
 	if *wFlag < 1 || *hFlag < 1 {
 		log.Fatal("image width and height must be positive")
