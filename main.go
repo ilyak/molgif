@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/color/palette"
+	"image/draw"
 	"image/gif"
 	"log"
 	"math"
@@ -136,6 +138,9 @@ func NewView(width, height int, radius float32) *View {
 func (v *View) Rotate(dx, dy, dz float32) {
 }
 
+func (v *View) Advance() {
+}
+
 func (v *View) NewRay(x, y int) Ray {
 	return Ray{}
 }
@@ -257,7 +262,10 @@ func (r *Renderer) Render() image.Image {
 }
 
 func MakePaletted(img image.Image) *image.Paletted {
-	return nil
+	b := img.Bounds()
+	pm := image.NewPaletted(b, palette.Plan9)
+	draw.FloydSteinberg.Draw(pm, b, img, image.ZP)
+	return pm
 }
 
 func RenderAnimation(r *Renderer, loopTime int) *gif.GIF {
@@ -268,6 +276,7 @@ func RenderAnimation(r *Renderer, loopTime int) *gif.GIF {
 		img := r.Render()
 		g.Image = append(g.Image, MakePaletted(img))
 		g.Delay = append(g.Delay, 100/FPS)
+		r.view.Advance()
 	}
 	return &g
 }
