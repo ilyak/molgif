@@ -1,3 +1,4 @@
+// (c) 2016 Ilya Kaliman. ISC license.
 package main
 
 import (
