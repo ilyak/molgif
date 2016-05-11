@@ -15,6 +15,9 @@ import (
 	"math"
 	"os"
 	"path"
+	"runtime"
+	"strings"
+	"sync"
 )
 
 type Mat struct {
@@ -91,6 +94,7 @@ type Ray struct {
 
 type Shape interface {
 	Intersect(Ray) (bool, Vec, Vec)
+	Center() Vec
 }
 
 type Sphere struct {
@@ -101,6 +105,10 @@ type Sphere struct {
 
 func (s *Sphere) Intersect(ray Ray) (bool, Vec, Vec) {
 	return false, Vec{}, Vec{}
+}
+
+func (s *Sphere) Center() Vec {
+	return s.pos
 }
 
 type Cylinder struct {
@@ -116,6 +124,10 @@ func NewCylinder(a, b Vec) Cylinder {
 
 func (c *Cylinder) Intersect(ray Ray) (bool, Vec, Vec) {
 	return false, Vec{}, Vec{}
+}
+
+func (c *Cylinder) Center() Vec {
+	return c.center
 }
 
 type View struct {
@@ -328,6 +340,7 @@ func NewMolecule(path string) (*Molecule, error) {
 		var v Vec
 		var s string
 		fmt.Sscanf(sc.Text(), "%s %f %f %f", &s, &v.x, &v.y, &v.z)
+		s = strings.Title(s)
 		e, ok := elements[s]
 		if !ok {
 			return nil, fmt.Errorf("unknown element: %s", s)
@@ -346,26 +359,62 @@ func NewMolecule(path string) (*Molecule, error) {
 	return m, nil
 }
 
-type Renderer struct {
+type PointLight struct {
+	pos Vec
+}
+
+type Scene struct {
 	shapes []Shape
+	lights []PointLight
 	view   *View
 	bg     color.RGBA
 }
 
-func NewRenderer(shapes []Shape, bg color.RGBA, w, h int) *Renderer {
+func NewScene(shapes []Shape, bg color.RGBA, w, h int) *Scene {
 	var r float32
-	return &Renderer{
+	return &Scene{
 		shapes: shapes,
 		view:   NewView(w, h, r),
 		bg:     bg,
 	}
 }
 
-func (r *Renderer) Advance(angv Vec) {
+func (r *Scene) Advance(angv Vec) {
 	r.view.Advance(angv)
 }
 
-func (r *Renderer) Render() image.Image {
+func RenderTile(r image.Rectangle) image.Image {
+	return nil
+}
+
+func Render() {
+	np := runtime.NumCPU()
+	ntiles := 100
+	var wg sync.WaitGroup
+	in := make(chan image.Rectangle)
+	out := make(chan image.Image, ntiles)
+	for i := 0; i < np; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for t := range in {
+				out <- RenderTile(t)
+			}
+		}()
+	}
+	for i := 0; i < ntiles; i++ {
+		in <- image.Rect(0, 0, i, i)
+	}
+	close(in)
+	wg.Wait()
+	close(out)
+	for i := range out {
+		_ = i
+		//combine
+	}
+}
+
+func (r *Scene) Render(frame int) image.Image {
 	bounds := image.Rect(0, 0, r.view.width, r.view.height)
 	img := image.NewRGBA(bounds)
 	for x := 0; x < r.view.width; x++ {
@@ -383,7 +432,7 @@ func MakePaletted(img image.Image) *image.Paletted {
 	return pm
 }
 
-func RenderAll(r *Renderer, loopTime int, rx, ry, rz bool) *gif.GIF {
+func RenderAll(r *Scene, loopTime int, rx, ry, rz bool) *gif.GIF {
 	const FPS = 50
 	nframes := loopTime * FPS
 	ang := 2.0 * math.Pi / float32(nframes)
@@ -399,7 +448,7 @@ func RenderAll(r *Renderer, loopTime int, rx, ry, rz bool) *gif.GIF {
 	}
 	var g gif.GIF
 	for i := 0; i < nframes; i++ {
-		img := r.Render()
+		img := r.Render(i)
 		g.Image = append(g.Image, MakePaletted(img))
 		g.Delay = append(g.Delay, 100/FPS)
 		r.Advance(angv)
@@ -419,7 +468,7 @@ func main() {
 	rFlag := flag.Uint("r", 0, "background color red component")
 	gFlag := flag.Uint("g", 0, "background color green component")
 	bFlag := flag.Uint("b", 0, "background color blue component")
-	nFlag := flag.Uint("n", 0, "render single frame n in png format")
+	nFlag := flag.Int("n", 0, "render single frame n in png format")
 	flag.Parse()
 	if *wFlag < 1 || *hFlag < 1 {
 		log.Fatal("image width and height must be positive")
@@ -451,12 +500,9 @@ func main() {
 	}
 	defer f.Close()
 	bg := color.RGBA{uint8(*rFlag), uint8(*gFlag), uint8(*bFlag), 255}
-	r := NewRenderer(m.Geometry(), bg, *wFlag, *hFlag)
+	r := NewScene(m.Geometry(), bg, *wFlag, *hFlag)
 	if *nFlag > 0 {
-		for i := uint(1); i < *nFlag; i++ {
-			r.Advance(Vec{})
-		}
-		g := r.Render()
+		g := r.Render(*nFlag - 1)
 		if err = png.Encode(f, g); err != nil {
 			log.Fatal(err)
 		}
