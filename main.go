@@ -60,6 +60,11 @@ func VecDot(a, b Vec) float32 {
 	return a.x*b.x + a.y*b.y + a.z*b.z
 }
 
+func VecScale(v Vec, s float32) Vec {
+	v.Scale(s)
+	return v
+}
+
 func (v *Vec) Add(a Vec) {
 	v.x += a.x
 	v.y += a.y
@@ -72,29 +77,23 @@ func (v *Vec) Sub(a Vec) {
 	v.z -= a.z
 }
 
-func (v *Vec) Mul(s float32) {
+func (v *Vec) Scale(s float32) {
 	v.x *= s
 	v.y *= s
 	v.z *= s
 }
 
-func (v *Vec) Div(s float32) {
-	v.x /= s
-	v.y /= s
-	v.z /= s
-}
-
 func (v *Vec) Normalize() {
-	v.Div(v.Len())
+	v.Scale(1.0 / v.Len())
 }
 
 type Ray struct {
-	dir, origin Vec // dir is normalized
+	origin, dir Vec // dir is normalized
 }
 
 type Shape interface {
-	Intersect(Ray) (bool, Vec, Vec)
-	Center() Vec
+	Intersect(Ray) (float32, Vec, Vec)
+	GetCenter() Vec
 }
 
 type Sphere struct {
@@ -103,16 +102,34 @@ type Sphere struct {
 	material Material
 }
 
-func (s *Sphere) Intersect(ray Ray) (bool, Vec, Vec) {
-	return false, Vec{}, Vec{}
+func (s *Sphere) Intersect(ray Ray) (float32, Vec, Vec) {
+	l := VecSub(s.pos, ray.origin)
+	tca := VecDot(ray.dir, l)
+	d2 := l.LenSq() - tca*tca
+	r2 := s.radius * s.radius
+	if d2 > r2 {
+		return math.MaxFloat32, Vec{}, Vec{}
+	}
+	thc := float32(math.Sqrt(float64(r2 - d2)))
+	t := tca - thc
+	if t < 0 {
+		t = tca + thc
+	}
+	p := ray.dir
+	p.Scale(t)
+	p.Add(ray.origin)
+	n := p
+	n.Sub(s.pos)
+	n.Normalize()
+	return t, p, n
 }
 
-func (s *Sphere) Center() Vec {
+func (s *Sphere) GetCenter() Vec {
 	return s.pos
 }
 
 type Cylinder struct {
-	center         Vec
+	pos            Vec
 	dir            Vec
 	height, radius float32
 	material       Material
@@ -122,12 +139,12 @@ func NewCylinder(a, b Vec) Cylinder {
 	return Cylinder{}
 }
 
-func (c *Cylinder) Intersect(ray Ray) (bool, Vec, Vec) {
-	return false, Vec{}, Vec{}
+func (c *Cylinder) Intersect(ray Ray) (float32, Vec, Vec) {
+	return math.MaxFloat32, Vec{}, Vec{}
 }
 
-func (c *Cylinder) Center() Vec {
-	return c.center
+func (c *Cylinder) GetCenter() Vec {
+	return c.pos
 }
 
 type View struct {
@@ -136,8 +153,8 @@ type View struct {
 	viewdist             float32
 }
 
-func NewView(width, height int, radius float32) *View {
-	pos := Vec{0, 0, -radius}
+func NewView(width, height int, dist float32) *View {
+	pos := Vec{0, 0, -dist}
 	v := View{
 		width:  width,
 		height: height,
@@ -149,14 +166,22 @@ func NewView(width, height int, radius float32) *View {
 	return &v
 }
 
-func (v *View) Rotate(dx, dy, dz float32) {
-}
+//func (v *View) Rotate(dx, dy, dz float32) {
+//}
 
-func (v *View) Advance(angv Vec) {
+//func (v *View) Advance(angv Vec) {
+//}
+
+func (v *View) Orient(phi, theta, psi float32) {
 }
 
 func (v *View) NewRay(x, y int) Ray {
-	return Ray{}
+	dx := float32(x - v.width/2)
+	dy := float32(y - v.height/2)
+	dir := v.look
+	dir.Add(VecScale(v.right, dx))
+	dir.Add(VecScale(v.up, dy))
+	return Ray{v.pos, dir}
 }
 
 type Material struct {
@@ -294,7 +319,7 @@ func (m *Molecule) Center() {
 	for _, a := range m.atoms {
 		c.Add(a.shape.pos)
 	}
-	c.Div(float32(len(m.atoms)))
+	c.Scale(1.0 / float32(len(m.atoms)))
 	for _, a := range m.atoms {
 		a.shape.pos.Sub(c)
 	}
@@ -368,38 +393,60 @@ type Scene struct {
 	lights []PointLight
 	view   *View
 	bg     color.RGBA
-	frame  int
+	frame  int //XXX remove
 }
 
 func NewScene(shapes []Shape, bg color.RGBA, w, h int) *Scene {
-	var r float32
+	var r float32 = 0
+	for _, s := range shapes {
+		c := s.GetCenter()
+		l := c.LenSq()
+		if l > r {
+			r = l
+		}
+	}
 	return &Scene{
 		shapes: shapes,
-		view:   NewView(w, h, r),
+		view:   NewView(w, h, r+1.0),
 		bg:     bg,
 	}
 }
 
-func (r *Scene) Advance(angv Vec) {
-	r.view.Advance(angv)
-}
+//func (p *Scene) Advance(angv Vec) {
+//	p.view.Advance(angv)
+//}
 
-func (r *Scene) RenderTile(b image.Rectangle) image.Image {
+func (p *Scene) RenderTile(b image.Rectangle) image.Image {
 	img := image.NewRGBA(b)
-	blue := color.RGBA{0, 0, uint8(r.frame), 255}
-	red := color.RGBA{uint8(r.frame), 0, 0, 255}
-	if (b.Min.X/64+b.Min.Y/64)%2 == 0 {
-		draw.Draw(img, b, &image.Uniform{blue}, image.ZP, draw.Src)
-	} else {
-		draw.Draw(img, b, &image.Uniform{red}, image.ZP, draw.Src)
+	//blue := color.RGBA{0, 0, uint8(p.frame), 255}
+	//red := color.RGBA{uint8(p.frame), 0, 0, 255}
+	//if (b.Min.X/64+b.Min.Y/64)%2 == 0 {
+	//	draw.Draw(img, b, &image.Uniform{blue}, image.ZP, draw.Src)
+	//} else {
+	//	draw.Draw(img, b, &image.Uniform{red}, image.ZP, draw.Src)
+	//}
+	for x := b.Min.X; x < b.Max.X; x++ {
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			pix := p.bg
+			var zmin float32 = math.MaxFloat32
+			ray := p.view.NewRay(x, y)
+			for _, s := range p.shapes {
+				z, v, n := s.Intersect(ray)
+				if z < zmin {
+					// compute pixel color
+					_, _ = v, n
+					pix = color.RGBA{128, 0, 128, 255}
+				}
+			}
+			img.Set(x, y, pix)
+		}
 	}
 	return img
 }
 
-// Renders current frame in parallel
-func (r *Scene) Render() image.Image {
+func (p *Scene) Render() image.Image {
 	const tileSize = 64
-	bounds := image.Rect(0, 0, r.view.width, r.view.height)
+	bounds := image.Rect(0, 0, p.view.width, p.view.height)
 	img := image.NewRGBA(bounds)
 	np := runtime.NumCPU()
 	ntilx := bounds.Dx() / tileSize
@@ -415,10 +462,11 @@ func (r *Scene) Render() image.Image {
 	out := make(chan image.Image, ntilx*ntily)
 	for i := 0; i < np; i++ {
 		wg.Add(1)
+		// render frame in parallel
 		go func() {
 			defer wg.Done()
 			for t := range in {
-				out <- r.RenderTile(t)
+				out <- p.RenderTile(t)
 			}
 		}()
 	}
@@ -438,9 +486,10 @@ func (r *Scene) Render() image.Image {
 	return img
 }
 
-func (r *Scene) RenderFrame(frame int) image.Image {
-	r.frame = frame
-	return r.Render()
+func (p *Scene) SetFrame(frame int) {
+	p.frame = frame //XXX
+	var phi, theta, psi float32 = 0.0, 0.0, 0.0
+	p.view.Orient(phi, theta, psi)
 }
 
 func MakePaletted(img image.Image) *image.Paletted {
@@ -450,7 +499,7 @@ func MakePaletted(img image.Image) *image.Paletted {
 	return pm
 }
 
-func RenderAll(r *Scene, loopTime int, rx, ry, rz bool) *gif.GIF {
+func RenderAll(s *Scene, loopTime int, rx, ry, rz bool) *gif.GIF {
 	const FPS = 50
 	nframes := loopTime * FPS
 	ang := 2.0 * math.Pi / float32(nframes)
@@ -466,16 +515,16 @@ func RenderAll(r *Scene, loopTime int, rx, ry, rz bool) *gif.GIF {
 	}
 	var g gif.GIF
 	for i := 0; i < nframes; i++ {
-		img := r.RenderFrame(i)
+		s.SetFrame(i)
+		img := s.Render()
 		g.Image = append(g.Image, MakePaletted(img))
 		g.Delay = append(g.Delay, 100/FPS)
-		r.Advance(angv)
+		//s.Advance(angv)
 	}
 	return &g
 }
 
 func main() {
-	iFlag := flag.String("i", "sample.xyz", "input file name")
 	oFlag := flag.String("o", "", "output file name")
 	wFlag := flag.Int("w", 300, "output image width")
 	hFlag := flag.Int("h", 200, "output image height")
@@ -497,7 +546,11 @@ func main() {
 	if *rFlag > 255 || *gFlag > 255 || *bFlag > 255 {
 		log.Fatal("color component must be in the [0, 255] range")
 	}
-	m, err := NewMolecule(*iFlag)
+	inp := flag.Arg(0)
+	if inp == "" {
+		inp = "sample.xyz"
+	}
+	m, err := NewMolecule(inp)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -506,7 +559,7 @@ func main() {
 		if *nFlag > 0 {
 			suf = ".png"
 		}
-		base := (*iFlag)[:len(*iFlag)-len(path.Ext(*iFlag))]
+		base := (inp)[:len(inp)-len(path.Ext(inp))]
 		*oFlag = base + suf
 	}
 	if !*xFlag && !*yFlag && !*zFlag {
@@ -520,7 +573,8 @@ func main() {
 	bg := color.RGBA{uint8(*rFlag), uint8(*gFlag), uint8(*bFlag), 255}
 	r := NewScene(m.Geometry(), bg, *wFlag, *hFlag)
 	if *nFlag > 0 {
-		g := r.RenderFrame(*nFlag - 1)
+		r.SetFrame(*nFlag - 1)
+		g := r.Render()
 		if err = png.Encode(f, g); err != nil {
 			log.Fatal(err)
 		}
