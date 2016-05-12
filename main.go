@@ -150,7 +150,6 @@ func (c *Cylinder) GetCenter() Vec {
 type View struct {
 	width, height        int
 	pos, look, right, up Vec
-	viewdist             float32
 }
 
 func NewView(width, height int, dist float32) *View {
@@ -181,21 +180,21 @@ func (v *View) NewRay(x, y int) Ray {
 	dir := v.look
 	dir.Add(VecScale(v.right, dx))
 	dir.Add(VecScale(v.up, dy))
+	dir.Normalize()
 	return Ray{v.pos, dir}
+}
+
+type Atom struct {
+	name string
+	pos  Vec
+}
+
+type Bond struct {
+	a, b *Atom
 }
 
 type Material struct {
 	color color.Color
-}
-
-type Atom struct {
-	name  string
-	shape Sphere
-}
-
-type Bond struct {
-	a, b  *Atom
-	shape Cylinder
 }
 
 type Element struct {
@@ -317,23 +316,22 @@ type Molecule struct {
 func (m *Molecule) Center() {
 	var c Vec
 	for _, a := range m.atoms {
-		c.Add(a.shape.pos)
+		c.Add(a.pos)
 	}
 	c.Scale(1.0 / float32(len(m.atoms)))
 	for _, a := range m.atoms {
-		a.shape.pos.Sub(c)
+		a.pos.Sub(c)
 	}
 }
 
 func (m *Molecule) MakeBonds() {
-	const bndist = 1.6
-	const bndist2 = bndist * bndist
+	const thresh = 1.6
 	for _, a := range m.atoms {
 		for _, b := range m.atoms {
-			pa := a.shape.pos
-			pb := b.shape.pos
-			if d := VecSub(pa, pb); d.LenSq() < bndist2 {
-				bnd := Bond{a, b, NewCylinder(pa, pb)}
+			pa := a.pos
+			pb := b.pos
+			if d := VecSub(pa, pb); d.LenSq() < thresh*thresh {
+				bnd := Bond{a, b}
 				m.bonds = append(m.bonds, &bnd)
 			}
 		}
@@ -343,10 +341,12 @@ func (m *Molecule) MakeBonds() {
 func (m *Molecule) Geometry() []Shape {
 	var g []Shape
 	for _, a := range m.atoms {
-		g = append(g, &a.shape)
+		s := Sphere{a.pos, 1.0, Material{}}
+		g = append(g, &s)
 	}
 	for _, b := range m.bonds {
-		g = append(g, &b.shape)
+		s := NewCylinder(b.a.pos, b.b.pos)
+		g = append(g, &s)
 	}
 	return g
 }
@@ -366,11 +366,11 @@ func NewMolecule(path string) (*Molecule, error) {
 		var s string
 		fmt.Sscanf(sc.Text(), "%s %f %f %f", &s, &v.x, &v.y, &v.z)
 		s = strings.Title(s)
-		e, ok := elements[s]
+		_, ok := elements[s]
 		if !ok {
 			return nil, fmt.Errorf("unknown element: %s", s)
 		}
-		atom := Atom{s, Sphere{v, e.radius, e.material}}
+		atom := Atom{s, v}
 		m.atoms = append(m.atoms, &atom)
 	}
 	if err = sc.Err(); err != nil {
@@ -407,7 +407,7 @@ func NewScene(shapes []Shape, bg color.RGBA, w, h int) *Scene {
 	}
 	return &Scene{
 		shapes: shapes,
-		view:   NewView(w, h, r+1.0),
+		view:   NewView(w, h, r+10.0),
 		bg:     bg,
 	}
 }
