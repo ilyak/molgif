@@ -368,6 +368,7 @@ type Scene struct {
 	lights []PointLight
 	view   *View
 	bg     color.RGBA
+	frame  int
 }
 
 func NewScene(shapes []Shape, bg color.RGBA, w, h int) *Scene {
@@ -383,46 +384,63 @@ func (r *Scene) Advance(angv Vec) {
 	r.view.Advance(angv)
 }
 
-func RenderTile(r image.Rectangle) image.Image {
-	return nil
+func (r *Scene) RenderTile(b image.Rectangle) image.Image {
+	img := image.NewRGBA(b)
+	blue := color.RGBA{0, 0, uint8(r.frame), 255}
+	red := color.RGBA{uint8(r.frame), 0, 0, 255}
+	if (b.Min.X/64+b.Min.Y/64)%2 == 0 {
+		draw.Draw(img, b, &image.Uniform{blue}, image.ZP, draw.Src)
+	} else {
+		draw.Draw(img, b, &image.Uniform{red}, image.ZP, draw.Src)
+	}
+	return img
 }
 
-func Render() {
+// Renders current frame in parallel
+func (r *Scene) Render() image.Image {
+	const tileSize = 64
+	bounds := image.Rect(0, 0, r.view.width, r.view.height)
+	img := image.NewRGBA(bounds)
 	np := runtime.NumCPU()
-	ntiles := 100
+	ntilx := bounds.Dx() / tileSize
+	if bounds.Dx()%tileSize != 0 {
+		ntilx++
+	}
+	ntily := bounds.Dy() / tileSize
+	if bounds.Dy()%tileSize != 0 {
+		ntily++
+	}
 	var wg sync.WaitGroup
 	in := make(chan image.Rectangle)
-	out := make(chan image.Image, ntiles)
+	out := make(chan image.Image, ntilx*ntily)
 	for i := 0; i < np; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for t := range in {
-				out <- RenderTile(t)
+				out <- r.RenderTile(t)
 			}
 		}()
 	}
-	for i := 0; i < ntiles; i++ {
-		in <- image.Rect(0, 0, i, i)
+	for i := 0; i < ntilx; i++ {
+		for j := 0; j < ntily; j++ {
+			x := i * tileSize
+			y := j * tileSize
+			in <- image.Rect(x, y, x+tileSize, y+tileSize)
+		}
 	}
 	close(in)
 	wg.Wait()
 	close(out)
-	for i := range out {
-		_ = i
-		//combine
-	}
-}
-
-func (r *Scene) Render(frame int) image.Image {
-	bounds := image.Rect(0, 0, r.view.width, r.view.height)
-	img := image.NewRGBA(bounds)
-	for x := 0; x < r.view.width; x++ {
-		for y := 0; y < r.view.height; y++ {
-			img.Set(x, y, r.bg)
-		}
+	for m := range out {
+		draw.Draw(img, m.Bounds(), m, m.Bounds().Min, draw.Src)
 	}
 	return img
+}
+
+func (r *Scene) RenderFrame(frame int) image.Image {
+	r.frame = frame
+	return r.Render()
 }
 
 func MakePaletted(img image.Image) *image.Paletted {
@@ -448,7 +466,7 @@ func RenderAll(r *Scene, loopTime int, rx, ry, rz bool) *gif.GIF {
 	}
 	var g gif.GIF
 	for i := 0; i < nframes; i++ {
-		img := r.Render(i)
+		img := r.RenderFrame(i)
 		g.Image = append(g.Image, MakePaletted(img))
 		g.Delay = append(g.Delay, 100/FPS)
 		r.Advance(angv)
@@ -457,14 +475,14 @@ func RenderAll(r *Scene, loopTime int, rx, ry, rz bool) *gif.GIF {
 }
 
 func main() {
-	iFlag := flag.String("i", "mol.xyz", "input file name")
+	iFlag := flag.String("i", "sample.xyz", "input file name")
 	oFlag := flag.String("o", "", "output file name")
 	wFlag := flag.Int("w", 300, "output image width")
 	hFlag := flag.Int("h", 200, "output image height")
 	xFlag := flag.Bool("x", false, "rotate along x axis")
 	yFlag := flag.Bool("y", false, "rotate along y axis")
 	zFlag := flag.Bool("z", false, "rotate along z axis")
-	tFlag := flag.Int("t", 5, "animation loop time in seconds")
+	tFlag := flag.Int("t", 1, "animation loop time in seconds")
 	rFlag := flag.Uint("r", 0, "background color red component")
 	gFlag := flag.Uint("g", 0, "background color green component")
 	bFlag := flag.Uint("b", 0, "background color blue component")
@@ -502,7 +520,7 @@ func main() {
 	bg := color.RGBA{uint8(*rFlag), uint8(*gFlag), uint8(*bFlag), 255}
 	r := NewScene(m.Geometry(), bg, *wFlag, *hFlag)
 	if *nFlag > 0 {
-		g := r.Render(*nFlag - 1)
+		g := r.RenderFrame(*nFlag - 1)
 		if err = png.Encode(f, g); err != nil {
 			log.Fatal(err)
 		}
