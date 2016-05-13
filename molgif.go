@@ -312,19 +312,22 @@ func NewMolecule(path string) (*Molecule, error) {
 }
 
 func DrawBanner(img *image.RGBA) {
-	clr := color.RGBA{128, 128, 128, 255}
-	pts := []image.Point{
-		{0, 0}, {0, 1},
-		{1, 1}, {1, 2},
-		{2, 2}, {2, 3},
-		{3, 3}, {3, 4},
-		{4, 4}, {4, 5},
+	cl := color.RGBA{128, 128, 128, 255}
+	pts := []string{
+		"oo.oo.oooo.o....ooo.ooo.ooo",
+		"o.o.o.o..o.o...o.....o..o..",
+		"o...o.o..o.o...o.oo..o..oo.",
+		"o...o.oooo.ooo..ooo.ooo.o..",
 	}
 	off := img.Bounds().Max
-	off.X -= 10
-	off.Y -= 10
-	for _, p := range pts {
-		img.Set(off.X+p.X, off.Y+p.Y, clr)
+	off.X -= len(pts[0]) + 2
+	off.Y -= len(pts) + 2
+	for y, s := range pts {
+		for x, c := range s {
+			if c == 'o' {
+				img.Set(off.X+x, off.Y+y, cl)
+			}
+		}
 	}
 }
 
