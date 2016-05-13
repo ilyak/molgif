@@ -26,11 +26,33 @@ type Mat struct {
 	zx, zy, zz float32
 }
 
+func MatIdent() Mat {
+	return Mat{
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1,
+	}
+}
+
 func MatVec(m Mat, v Vec) Vec {
 	return Vec{
 		m.xx*v.x + m.xy*v.y + m.xz*v.z,
 		m.yx*v.x + m.yy*v.y + m.yz*v.z,
 		m.zx*v.x + m.zy*v.y + m.zz*v.z,
+	}
+}
+
+func MatMat(m1 Mat, m2 Mat) Mat {
+	return Mat{
+		m1.xx*m2.xx + m1.xy*m2.yx + m1.xz*m2.zx,
+		m1.xx*m2.xy + m1.xy*m2.yy + m1.xz*m2.zy,
+		m1.xx*m2.xz + m1.xy*m2.yz + m1.xz*m2.zz,
+		m1.yx*m2.xx + m1.yy*m2.yx + m1.yz*m2.zx,
+		m1.yx*m2.xy + m1.yy*m2.yy + m1.yz*m2.zy,
+		m1.yx*m2.xz + m1.yy*m2.yz + m1.yz*m2.zz,
+		m1.zx*m2.xx + m1.zy*m2.yx + m1.zz*m2.zx,
+		m1.zx*m2.xy + m1.zy*m2.yy + m1.zz*m2.zy,
+		m1.zx*m2.xz + m1.zy*m2.yz + m1.zz*m2.zz,
 	}
 }
 
@@ -251,10 +273,9 @@ func (mol *Molecule) MakeBonds() {
 	}
 }
 
-func (mol *Molecule) Rotate(angle float32) {
-	r := MatRotY(angle)
+func (mol *Molecule) Rotate(rot Mat) {
 	for _, a := range mol.atoms {
-		a.pos = MatVec(r, a.pos)
+		a.pos = MatVec(rot, a.pos)
 	}
 }
 
@@ -264,7 +285,7 @@ func (sc *Scene) UpdateGeometry() {
 		p := Sphere{a.pos, sc.atomSize, Material{Elements[a.name]}}
 		sc.shapes = append(sc.shapes, &p)
 	}
-	if sc.bondSize > 0.01 {
+	if sc.bondSize > 0.001 {
 		for _, bnd := range sc.mol.bonds {
 			mid := VecAdd(bnd.a.pos, bnd.b.pos)
 			mid.Scale(0.5)
@@ -312,7 +333,7 @@ func NewMolecule(path string) (*Molecule, error) {
 }
 
 func DrawBanner(img *image.RGBA) {
-	cl := color.RGBA{128, 128, 128, 255}
+	cl := color.RGBA{200, 200, 200, 255}
 	pts := []string{
 		"oo.oo.oooo.o....ooo.ooo.ooo",
 		"o.o.o.o..o.o...o.....o..o..",
@@ -341,12 +362,13 @@ type Scene struct {
 	shapes   []Shape
 	light    PointLight
 	bg       color.RGBA
+	banner   bool
 	atomSize float32
 	bondSize float32
 }
 
 func NewScene(mol *Molecule, w, h int) *Scene {
-	var r float32 = 0
+	var r float32 = 1.0
 	for _, a := range mol.atoms {
 		l := a.pos.Len()
 		if l > r {
@@ -355,9 +377,9 @@ func NewScene(mol *Molecule, w, h int) *Scene {
 	}
 	sc := Scene{
 		mol:  mol,
-		view: NewView(w, h, r+8.0),
+		view: NewView(w, h, 3.0*r),
 	}
-	sc.light = PointLight{Vec{100, 50, -100}}
+	sc.light = PointLight{Vec{1000, 500, -1000}}
 	return &sc
 }
 
@@ -432,7 +454,9 @@ func (sc *Scene) Render() image.Image {
 	for m := range out {
 		draw.Draw(img, m.Bounds(), m, m.Bounds().Min, draw.Src)
 	}
-	DrawBanner(img)
+	if sc.banner {
+		DrawBanner(img)
+	}
 	return img
 }
 
@@ -443,27 +467,25 @@ func MakePaletted(img image.Image) *image.Paletted {
 	return pm
 }
 
-func RenderAll(sc *Scene, loopTime int, rx, ry, rz bool) *gif.GIF {
+func RenderAll(sc *Scene, loopTime int, rotvec [3]float32) *gif.GIF {
 	const FPS = 50
 	nframes := loopTime * FPS
-	ang := 2.0 * math.Pi / float32(nframes)
-	angv := Vec{}
-	if rx {
-		angv.x = ang
+	var sum float64
+	for i := range rotvec {
+		sum += math.Abs(float64(rotvec[i]))
 	}
-	if ry {
-		angv.y = ang
-	}
-	if rz {
-		angv.z = ang
-	}
+	ang := 2.0 * math.Pi / float32(nframes) / float32(math.Sqrt(sum))
+	rot := MatIdent()
+	rot = MatMat(rot, MatRotX(ang*rotvec[0]))
+	rot = MatMat(rot, MatRotY(ang*rotvec[1]))
+	rot = MatMat(rot, MatRotZ(ang*rotvec[2]))
 	var g gif.GIF
 	for i := 0; i < nframes; i++ {
-		sc.mol.Rotate(ang)
-		sc.UpdateGeometry()
 		img := sc.Render()
 		g.Image = append(g.Image, MakePaletted(img))
 		g.Delay = append(g.Delay, 100/FPS)
+		sc.mol.Rotate(rot)
+		sc.UpdateGeometry()
 	}
 	return &g
 }
@@ -472,16 +494,20 @@ func main() {
 	oFlag := flag.String("o", "", "output file name")
 	wFlag := flag.Int("w", 256, "output image width")
 	hFlag := flag.Int("h", 256, "output image height")
+	tFlag := flag.Int("t", 2, "animation loop time in seconds")
 	xFlag := flag.Bool("x", false, "rotate along x axis")
 	yFlag := flag.Bool("y", false, "rotate along y axis")
 	zFlag := flag.Bool("z", false, "rotate along z axis")
-	tFlag := flag.Int("t", 2, "animation loop time in seconds")
+	XFlag := flag.Bool("X", false, "rotate along x axis in reverse")
+	YFlag := flag.Bool("Y", false, "rotate along y axis in reverse")
+	ZFlag := flag.Bool("Z", false, "rotate along z axis in reverse")
+	lFlag := flag.Bool("l", false, "hide molgif banner")
+	pFlag := flag.Bool("p", false, "render image in png format")
 	rFlag := flag.Uint("r", 0, "background color red component")
 	gFlag := flag.Uint("g", 0, "background color green component")
 	bFlag := flag.Uint("b", 0, "background color blue component")
-	pFlag := flag.Bool("p", false, "render one frame in png format")
 	aFlag := flag.Float64("a", 0.4, "atom size")
-	dFlag := flag.Float64("d", 0.2, "bond size")
+	dFlag := flag.Float64("d", 0.3, "bond size")
 	flag.Parse()
 	if *wFlag < 1 || *hFlag < 1 {
 		log.Fatal("image width and height must be positive")
@@ -514,7 +540,7 @@ func main() {
 		base := (inp)[:len(inp)-len(path.Ext(inp))]
 		*oFlag = base + suf
 	}
-	if !*xFlag && !*yFlag && !*zFlag {
+	if !*xFlag && !*yFlag && !*zFlag && !*XFlag && !*YFlag && !*ZFlag {
 		*yFlag = true
 	}
 	f, err := os.Create(*oFlag)
@@ -523,16 +549,37 @@ func main() {
 	}
 	defer f.Close()
 	sc := NewScene(mol, *wFlag, *hFlag)
+	sc.banner = !*lFlag
 	sc.bg = color.RGBA{uint8(*rFlag), uint8(*gFlag), uint8(*bFlag), 255}
 	sc.atomSize = float32(*aFlag)
 	sc.bondSize = float32(*dFlag)
+	sc.UpdateGeometry()
 	if *pFlag {
 		m := sc.Render()
 		if err = png.Encode(f, m); err != nil {
 			log.Fatal(err)
 		}
 	} else {
-		g := RenderAll(sc, *tFlag, *xFlag, *yFlag, *zFlag)
+		var rotvec [3]float32
+		if *xFlag {
+			rotvec[0] = 1
+		}
+		if *yFlag {
+			rotvec[1] = 1
+		}
+		if *zFlag {
+			rotvec[2] = 1
+		}
+		if *XFlag {
+			rotvec[0] = -1
+		}
+		if *YFlag {
+			rotvec[1] = -1
+		}
+		if *ZFlag {
+			rotvec[2] = -1
+		}
+		g := RenderAll(sc, *tFlag, rotvec)
 		if err = gif.EncodeAll(f, g); err != nil {
 			log.Fatal(err)
 		}
