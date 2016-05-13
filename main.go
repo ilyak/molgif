@@ -34,6 +34,17 @@ func MatVec(m Mat, v Vec) Vec {
 	}
 }
 
+func MatRotY(angle float32) Mat {
+	s64, c64 := math.Sincos(float64(angle))
+	s := float32(s64)
+	c := float32(c64)
+	return Mat{
+		c, 0, -s,
+		0, 1, 0,
+		s, 0, c,
+	}
+}
+
 type Vec struct {
 	x, y, z float32
 }
@@ -93,7 +104,8 @@ type Ray struct {
 
 type Shape interface {
 	Intersect(Ray) (float32, Vec, Vec)
-	GetCenter() Vec
+	Center() Vec
+	Material() Material
 }
 
 type Sphere struct {
@@ -124,8 +136,12 @@ func (s *Sphere) Intersect(ray Ray) (float32, Vec, Vec) {
 	return t, p, n
 }
 
-func (s *Sphere) GetCenter() Vec {
+func (s *Sphere) Center() Vec {
 	return s.pos
+}
+
+func (s *Sphere) Material() Material {
+	return s.material
 }
 
 type Cylinder struct {
@@ -143,8 +159,12 @@ func (c *Cylinder) Intersect(ray Ray) (float32, Vec, Vec) {
 	return math.MaxFloat32, Vec{}, Vec{}
 }
 
-func (c *Cylinder) GetCenter() Vec {
+func (c *Cylinder) Center() Vec {
 	return c.pos
+}
+
+func (c *Cylinder) Material() Material {
+	return c.material
 }
 
 type View struct {
@@ -165,18 +185,9 @@ func NewView(width, height int, dist float32) *View {
 	return &v
 }
 
-//func (v *View) Rotate(dx, dy, dz float32) {
-//}
-
-//func (v *View) Advance(angv Vec) {
-//}
-
-func (v *View) Orient(phi, theta, psi float32) {
-}
-
 func (v *View) NewRay(x, y int) Ray {
-	dx := float32(x - v.width/2)
-	dy := float32(y - v.height/2)
+	dx := float32(x-v.width/2) / float32(v.width)
+	dy := float32(y-v.height/2) / float32(v.width)
 	dir := v.look
 	dir.Add(VecScale(v.right, dx))
 	dir.Add(VecScale(v.up, dy))
@@ -194,7 +205,7 @@ type Bond struct {
 }
 
 type Material struct {
-	color color.Color
+	color color.RGBA
 }
 
 type Element struct {
@@ -202,118 +213,11 @@ type Element struct {
 	radius   float32
 }
 
-var elements map[string]Element = map[string]Element{
-	"H":  {Material{color: color.RGBA{255, 255, 255, 255}}, 1.0},
-	"He": {Material{color: color.RGBA{217, 255, 255, 255}}, 1.0},
-	"Li": {Material{color: color.RGBA{205, 126, 255, 255}}, 1.0},
-	"Be": {Material{color: color.RGBA{197, 255, 0, 255}}, 1.0},
-	"B":  {Material{color: color.RGBA{255, 183, 183, 255}}, 1.0},
-	"C":  {Material{color: color.RGBA{146, 146, 146, 255}}, 1.0},
-	"N":  {Material{color: color.RGBA{143, 143, 255, 255}}, 1.0},
-	"O":  {Material{color: color.RGBA{240, 0, 0, 255}}, 1.0},
-	"F":  {Material{color: color.RGBA{179, 255, 255, 255}}, 1.0},
-	"Ne": {Material{color: color.RGBA{175, 227, 244, 255}}, 1.0},
-	"Na": {Material{color: color.RGBA{170, 94, 242, 255}}, 1.0},
-	"Mg": {Material{color: color.RGBA{137, 255, 0, 255}}, 1.0},
-	"Al": {Material{color: color.RGBA{210, 165, 165, 255}}, 1.0},
-	"Si": {Material{color: color.RGBA{129, 154, 154, 255}}, 1.0},
-	"P":  {Material{color: color.RGBA{255, 128, 0, 255}}, 1.0},
-	"S":  {Material{color: color.RGBA{255, 200, 50, 255}}, 1.0},
-	"Cl": {Material{color: color.RGBA{32, 240, 32, 255}}, 1.0},
-	"Ar": {Material{color: color.RGBA{129, 209, 228, 255}}, 1.0},
-	"K":  {Material{color: color.RGBA{143, 65, 211, 255}}, 1.0},
-	"Ca": {Material{color: color.RGBA{61, 255, 0, 255}}, 1.0},
-	"Sc": {Material{color: color.RGBA{230, 230, 228, 255}}, 1.0},
-	"Ti": {Material{color: color.RGBA{192, 195, 198, 255}}, 1.0},
-	"V":  {Material{color: color.RGBA{167, 165, 172, 255}}, 1.0},
-	"Cr": {Material{color: color.RGBA{139, 153, 198, 255}}, 1.0},
-	"Mn": {Material{color: color.RGBA{156, 123, 198, 255}}, 1.0},
-	"Fe": {Material{color: color.RGBA{129, 123, 198, 255}}, 1.0},
-	"Co": {Material{color: color.RGBA{112, 123, 195, 255}}, 1.0},
-	"Ni": {Material{color: color.RGBA{93, 123, 195, 255}}, 1.0},
-	"Cu": {Material{color: color.RGBA{255, 123, 98, 255}}, 1.0},
-	"Zn": {Material{color: color.RGBA{124, 129, 175, 255}}, 1.0},
-	"Ga": {Material{color: color.RGBA{195, 146, 145, 255}}, 1.0},
-	"Ge": {Material{color: color.RGBA{102, 146, 146, 255}}, 1.0},
-	"As": {Material{color: color.RGBA{190, 129, 227, 255}}, 1.0},
-	"Se": {Material{color: color.RGBA{255, 162, 0, 255}}, 1.0},
-	"Br": {Material{color: color.RGBA{165, 42, 42, 255}}, 1.0},
-	"Kr": {Material{color: color.RGBA{93, 186, 209, 255}}, 1.0},
-	"Rb": {Material{color: color.RGBA{113, 46, 178, 255}}, 1.0},
-	"Sr": {Material{color: color.RGBA{0, 254, 0, 255}}, 1.0},
-	"Y":  {Material{color: color.RGBA{150, 253, 255, 255}}, 1.0},
-	"Zr": {Material{color: color.RGBA{150, 225, 225, 255}}, 1.0},
-	"Nb": {Material{color: color.RGBA{116, 195, 203, 255}}, 1.0},
-	"Mo": {Material{color: color.RGBA{85, 181, 183, 255}}, 1.0},
-	"Tc": {Material{color: color.RGBA{60, 159, 168, 255}}, 1.0},
-	"Ru": {Material{color: color.RGBA{35, 142, 151, 255}}, 1.0},
-	"Rh": {Material{color: color.RGBA{11, 124, 140, 255}}, 1.0},
-	"Pd": {Material{color: color.RGBA{0, 104, 134, 255}}, 1.0},
-	"Ag": {Material{color: color.RGBA{153, 198, 255, 255}}, 1.0},
-	"Cd": {Material{color: color.RGBA{255, 216, 145, 255}}, 1.0},
-	"In": {Material{color: color.RGBA{167, 118, 115, 255}}, 1.0},
-	"Sn": {Material{color: color.RGBA{102, 129, 129, 255}}, 1.0},
-	"Sb": {Material{color: color.RGBA{159, 101, 181, 255}}, 1.0},
-	"Te": {Material{color: color.RGBA{213, 123, 0, 255}}, 1.0},
-	"I":  {Material{color: color.RGBA{147, 0, 147, 255}}, 1.0},
-	"Xe": {Material{color: color.RGBA{66, 159, 176, 255}}, 1.0},
-	"Cs": {Material{color: color.RGBA{87, 25, 143, 255}}, 1.0},
-	"Ba": {Material{color: color.RGBA{0, 202, 0, 255}}, 1.0},
-	"La": {Material{color: color.RGBA{112, 222, 255, 255}}, 1.0},
-	"Ce": {Material{color: color.RGBA{255, 255, 200, 255}}, 1.0},
-	"Pr": {Material{color: color.RGBA{217, 255, 200, 255}}, 1.0},
-	"Nd": {Material{color: color.RGBA{198, 255, 200, 255}}, 1.0},
-	"Pm": {Material{color: color.RGBA{164, 255, 200, 255}}, 1.0},
-	"Sm": {Material{color: color.RGBA{146, 255, 200, 255}}, 1.0},
-	"Eu": {Material{color: color.RGBA{99, 255, 200, 255}}, 1.0},
-	"Gd": {Material{color: color.RGBA{71, 255, 200, 255}}, 1.0},
-	"Tb": {Material{color: color.RGBA{50, 255, 200, 255}}, 1.0},
-	"Dy": {Material{color: color.RGBA{31, 255, 183, 255}}, 1.0},
-	"Ho": {Material{color: color.RGBA{0, 254, 157, 255}}, 1.0},
-	"Er": {Material{color: color.RGBA{0, 230, 118, 255}}, 1.0},
-	"Tm": {Material{color: color.RGBA{0, 210, 83, 255}}, 1.0},
-	"Yb": {Material{color: color.RGBA{0, 191, 57, 255}}, 1.0},
-	"Lu": {Material{color: color.RGBA{0, 172, 35, 255}}, 1.0},
-	"Hf": {Material{color: color.RGBA{77, 194, 255, 255}}, 1.0},
-	"Ta": {Material{color: color.RGBA{77, 167, 255, 255}}, 1.0},
-	"W":  {Material{color: color.RGBA{39, 148, 214, 255}}, 1.0},
-	"Re": {Material{color: color.RGBA{39, 126, 172, 255}}, 1.0},
-	"Os": {Material{color: color.RGBA{39, 104, 151, 255}}, 1.0},
-	"Ir": {Material{color: color.RGBA{24, 85, 135, 255}}, 1.0},
-	"Pt": {Material{color: color.RGBA{24, 91, 145, 255}}, 1.0},
-	"Au": {Material{color: color.RGBA{255, 209, 36, 255}}, 1.0},
-	"Hg": {Material{color: color.RGBA{181, 181, 195, 255}}, 1.0},
-	"Tl": {Material{color: color.RGBA{167, 85, 77, 255}}, 1.0},
-	"Pb": {Material{color: color.RGBA{87, 90, 96, 255}}, 1.0},
-	"Bi": {Material{color: color.RGBA{159, 79, 181, 255}}, 1.0},
-	"Po": {Material{color: color.RGBA{172, 93, 0, 255}}, 1.0},
-	"At": {Material{color: color.RGBA{118, 79, 69, 255}}, 1.0},
-	"Rn": {Material{color: color.RGBA{66, 132, 151, 255}}, 1.0},
-	"Fr": {Material{color: color.RGBA{66, 0, 102, 255}}, 1.0},
-	"Ra": {Material{color: color.RGBA{0, 123, 0, 255}}, 1.0},
-	"Ac": {Material{color: color.RGBA{113, 170, 252, 255}}, 1.0},
-	"Th": {Material{color: color.RGBA{0, 186, 255, 255}}, 1.0},
-	"Pa": {Material{color: color.RGBA{0, 160, 255, 255}}, 1.0},
-	"U":  {Material{color: color.RGBA{0, 145, 255, 255}}, 1.0},
-	"Np": {Material{color: color.RGBA{0, 128, 242, 255}}, 1.0},
-	"Pu": {Material{color: color.RGBA{0, 106, 242, 255}}, 1.0},
-	"Am": {Material{color: color.RGBA{85, 91, 242, 255}}, 1.0},
-	"Cm": {Material{color: color.RGBA{120, 91, 227, 255}}, 1.0},
-	"Bk": {Material{color: color.RGBA{137, 79, 227, 255}}, 1.0},
-	"Cf": {Material{color: color.RGBA{161, 55, 213, 255}}, 1.0},
-	"Es": {Material{color: color.RGBA{179, 31, 213, 255}}, 1.0},
-	"Fm": {Material{color: color.RGBA{179, 31, 186, 255}}, 1.0},
-	"Md": {Material{color: color.RGBA{179, 13, 167, 255}}, 1.0},
-	"No": {Material{color: color.RGBA{189, 13, 135, 255}}, 1.0},
-	"Lr": {Material{color: color.RGBA{201, 0, 102, 255}}, 1.0},
-}
-
 type Molecule struct {
 	atoms []*Atom
-	bonds []*Bond
 }
 
-func (m *Molecule) Center() {
+func (m *Molecule) MoveToOrigin() {
 	var c Vec
 	for _, a := range m.atoms {
 		c.Add(a.pos)
@@ -324,27 +228,38 @@ func (m *Molecule) Center() {
 	}
 }
 
-func (m *Molecule) MakeBonds() {
+func (m *Molecule) MakeBonds() []*Bond {
 	const thresh = 1.6
+	var bonds []*Bond
 	for _, a := range m.atoms {
 		for _, b := range m.atoms {
 			pa := a.pos
 			pb := b.pos
 			if d := VecSub(pa, pb); d.LenSq() < thresh*thresh {
 				bnd := Bond{a, b}
-				m.bonds = append(m.bonds, &bnd)
+				bonds = append(bonds, &bnd)
 			}
 		}
+	}
+	return bonds
+}
+
+func (m *Molecule) Rotate(angle float32) {
+	r := MatRotY(angle)
+	for _, a := range m.atoms {
+		a.pos = MatVec(r, a.pos)
 	}
 }
 
 func (m *Molecule) Geometry() []Shape {
 	var g []Shape
 	for _, a := range m.atoms {
-		s := Sphere{a.pos, 1.0, Material{}}
+		e := elements[a.name]
+		s := Sphere{a.pos, e.radius, e.material}
 		g = append(g, &s)
 	}
-	for _, b := range m.bonds {
+	bonds := m.MakeBonds()
+	for _, b := range bonds {
 		s := NewCylinder(b.a.pos, b.b.pos)
 		g = append(g, &s)
 	}
@@ -379,8 +294,7 @@ func NewMolecule(path string) (*Molecule, error) {
 	if len(m.atoms) == 0 {
 		return nil, fmt.Errorf("%s: no atoms found", path)
 	}
-	m.Center()
-	m.MakeBonds()
+	m.MoveToOrigin()
 	return m, nil
 }
 
@@ -393,38 +307,29 @@ type Scene struct {
 	lights []PointLight
 	view   *View
 	bg     color.RGBA
-	frame  int //XXX remove
 }
 
 func NewScene(shapes []Shape, bg color.RGBA, w, h int) *Scene {
 	var r float32 = 0
 	for _, s := range shapes {
-		c := s.GetCenter()
-		l := c.LenSq()
+		c := s.Center()
+		l := c.Len()
 		if l > r {
 			r = l
 		}
 	}
-	return &Scene{
+	s := Scene{
 		shapes: shapes,
 		view:   NewView(w, h, r+10.0),
 		bg:     bg,
 	}
+	l := PointLight{Vec{10, 10, -10}}
+	s.lights = append(s.lights, l)
+	return &s
 }
-
-//func (p *Scene) Advance(angv Vec) {
-//	p.view.Advance(angv)
-//}
 
 func (p *Scene) RenderTile(b image.Rectangle) image.Image {
 	img := image.NewRGBA(b)
-	//blue := color.RGBA{0, 0, uint8(p.frame), 255}
-	//red := color.RGBA{uint8(p.frame), 0, 0, 255}
-	//if (b.Min.X/64+b.Min.Y/64)%2 == 0 {
-	//	draw.Draw(img, b, &image.Uniform{blue}, image.ZP, draw.Src)
-	//} else {
-	//	draw.Draw(img, b, &image.Uniform{red}, image.ZP, draw.Src)
-	//}
 	for x := b.Min.X; x < b.Max.X; x++ {
 		for y := b.Min.Y; y < b.Max.Y; y++ {
 			pix := p.bg
@@ -433,9 +338,18 @@ func (p *Scene) RenderTile(b image.Rectangle) image.Image {
 			for _, s := range p.shapes {
 				z, v, n := s.Intersect(ray)
 				if z < zmin {
-					// compute pixel color
-					_, _ = v, n
-					pix = color.RGBA{128, 0, 128, 255}
+					zmin = z
+					l := p.lights[0].pos
+					l.Sub(v)
+					l.Normalize()
+					dot := VecDot(l, n)
+					if dot < 0.0 {
+						dot = 0.0
+					}
+					pix = s.Material().color
+					pix.R = uint8(float32(pix.R) * dot)
+					pix.G = uint8(float32(pix.G) * dot)
+					pix.B = uint8(float32(pix.B) * dot)
 				}
 			}
 			img.Set(x, y, pix)
@@ -444,19 +358,17 @@ func (p *Scene) RenderTile(b image.Rectangle) image.Image {
 	return img
 }
 
+func (p *Scene) UpdateGeometry(m *Molecule) {
+	p.shapes = m.Geometry()
+}
+
 func (p *Scene) Render() image.Image {
 	const tileSize = 64
 	bounds := image.Rect(0, 0, p.view.width, p.view.height)
 	img := image.NewRGBA(bounds)
 	np := runtime.NumCPU()
-	ntilx := bounds.Dx() / tileSize
-	if bounds.Dx()%tileSize != 0 {
-		ntilx++
-	}
-	ntily := bounds.Dy() / tileSize
-	if bounds.Dy()%tileSize != 0 {
-		ntily++
-	}
+	ntilx := (bounds.Dx() + tileSize - 1) / tileSize
+	ntily := (bounds.Dy() + tileSize - 1) / tileSize
 	var wg sync.WaitGroup
 	in := make(chan image.Rectangle)
 	out := make(chan image.Image, ntilx*ntily)
@@ -486,12 +398,6 @@ func (p *Scene) Render() image.Image {
 	return img
 }
 
-func (p *Scene) SetFrame(frame int) {
-	p.frame = frame //XXX
-	var phi, theta, psi float32 = 0.0, 0.0, 0.0
-	p.view.Orient(phi, theta, psi)
-}
-
 func MakePaletted(img image.Image) *image.Paletted {
 	bounds := img.Bounds()
 	pm := image.NewPaletted(bounds, palette.Plan9)
@@ -499,7 +405,7 @@ func MakePaletted(img image.Image) *image.Paletted {
 	return pm
 }
 
-func RenderAll(s *Scene, loopTime int, rx, ry, rz bool) *gif.GIF {
+func RenderAll(s *Scene, m *Molecule, loopTime int, rx, ry, rz bool) *gif.GIF {
 	const FPS = 50
 	nframes := loopTime * FPS
 	ang := 2.0 * math.Pi / float32(nframes)
@@ -515,14 +421,22 @@ func RenderAll(s *Scene, loopTime int, rx, ry, rz bool) *gif.GIF {
 	}
 	var g gif.GIF
 	for i := 0; i < nframes; i++ {
-		s.SetFrame(i)
+		m.Rotate(ang)
+		s.UpdateGeometry(m)
 		img := s.Render()
 		g.Image = append(g.Image, MakePaletted(img))
 		g.Delay = append(g.Delay, 100/FPS)
-		//s.Advance(angv)
 	}
 	return &g
 }
+
+const (
+	StyleDefault = iota
+	StyleNoBonds
+	StyleFatBonds
+	StyleBalls
+	StyleLast
+)
 
 func main() {
 	oFlag := flag.String("o", "", "output file name")
@@ -531,11 +445,12 @@ func main() {
 	xFlag := flag.Bool("x", false, "rotate along x axis")
 	yFlag := flag.Bool("y", false, "rotate along y axis")
 	zFlag := flag.Bool("z", false, "rotate along z axis")
-	tFlag := flag.Int("t", 1, "animation loop time in seconds")
+	tFlag := flag.Int("t", 2, "animation loop time in seconds")
 	rFlag := flag.Uint("r", 0, "background color red component")
 	gFlag := flag.Uint("g", 0, "background color green component")
 	bFlag := flag.Uint("b", 0, "background color blue component")
-	nFlag := flag.Int("n", 0, "render single frame n in png format")
+	pFlag := flag.Bool("p", false, "render one frame in png format")
+	sFlag := flag.Uint("s", StyleDefault, "rendering style")
 	flag.Parse()
 	if *wFlag < 1 || *hFlag < 1 {
 		log.Fatal("image width and height must be positive")
@@ -545,6 +460,9 @@ func main() {
 	}
 	if *rFlag > 255 || *gFlag > 255 || *bFlag > 255 {
 		log.Fatal("color component must be in the [0, 255] range")
+	}
+	if *sFlag >= StyleLast {
+		*sFlag = StyleDefault
 	}
 	inp := flag.Arg(0)
 	if inp == "" {
@@ -556,7 +474,7 @@ func main() {
 	}
 	if *oFlag == "" {
 		suf := ".gif"
-		if *nFlag > 0 {
+		if *pFlag {
 			suf = ".png"
 		}
 		base := (inp)[:len(inp)-len(path.Ext(inp))]
@@ -572,16 +490,121 @@ func main() {
 	defer f.Close()
 	bg := color.RGBA{uint8(*rFlag), uint8(*gFlag), uint8(*bFlag), 255}
 	r := NewScene(m.Geometry(), bg, *wFlag, *hFlag)
-	if *nFlag > 0 {
-		r.SetFrame(*nFlag - 1)
+	if *pFlag {
 		g := r.Render()
 		if err = png.Encode(f, g); err != nil {
 			log.Fatal(err)
 		}
 	} else {
-		g := RenderAll(r, *tFlag, *xFlag, *yFlag, *zFlag)
+		g := RenderAll(r, m, *tFlag, *xFlag, *yFlag, *zFlag)
 		if err = gif.EncodeAll(f, g); err != nil {
 			log.Fatal(err)
 		}
 	}
+}
+
+var elements map[string]Element = map[string]Element{
+	"H":  {Material{color: color.RGBA{255, 255, 255, 255}}, 0.5},
+	"He": {Material{color: color.RGBA{217, 255, 255, 255}}, 0.5},
+	"Li": {Material{color: color.RGBA{205, 126, 255, 255}}, 0.5},
+	"Be": {Material{color: color.RGBA{197, 255, 0, 255}}, 0.5},
+	"B":  {Material{color: color.RGBA{255, 183, 183, 255}}, 0.5},
+	"C":  {Material{color: color.RGBA{146, 146, 146, 255}}, 0.5},
+	"N":  {Material{color: color.RGBA{143, 143, 255, 255}}, 0.5},
+	"O":  {Material{color: color.RGBA{240, 0, 0, 255}}, 0.5},
+	"F":  {Material{color: color.RGBA{179, 255, 255, 255}}, 0.5},
+	"Ne": {Material{color: color.RGBA{175, 227, 244, 255}}, 0.5},
+	"Na": {Material{color: color.RGBA{170, 94, 242, 255}}, 0.5},
+	"Mg": {Material{color: color.RGBA{137, 255, 0, 255}}, 0.5},
+	"Al": {Material{color: color.RGBA{210, 165, 165, 255}}, 0.5},
+	"Si": {Material{color: color.RGBA{129, 154, 154, 255}}, 0.5},
+	"P":  {Material{color: color.RGBA{255, 128, 0, 255}}, 0.5},
+	"S":  {Material{color: color.RGBA{255, 200, 50, 255}}, 0.5},
+	"Cl": {Material{color: color.RGBA{32, 240, 32, 255}}, 0.5},
+	"Ar": {Material{color: color.RGBA{129, 209, 228, 255}}, 0.5},
+	"K":  {Material{color: color.RGBA{143, 65, 211, 255}}, 0.5},
+	"Ca": {Material{color: color.RGBA{61, 255, 0, 255}}, 0.5},
+	"Sc": {Material{color: color.RGBA{230, 230, 228, 255}}, 0.5},
+	"Ti": {Material{color: color.RGBA{192, 195, 198, 255}}, 0.5},
+	"V":  {Material{color: color.RGBA{167, 165, 172, 255}}, 0.5},
+	"Cr": {Material{color: color.RGBA{139, 153, 198, 255}}, 0.5},
+	"Mn": {Material{color: color.RGBA{156, 123, 198, 255}}, 0.5},
+	"Fe": {Material{color: color.RGBA{129, 123, 198, 255}}, 0.5},
+	"Co": {Material{color: color.RGBA{112, 123, 195, 255}}, 0.5},
+	"Ni": {Material{color: color.RGBA{93, 123, 195, 255}}, 0.5},
+	"Cu": {Material{color: color.RGBA{255, 123, 98, 255}}, 0.5},
+	"Zn": {Material{color: color.RGBA{124, 129, 175, 255}}, 0.5},
+	"Ga": {Material{color: color.RGBA{195, 146, 145, 255}}, 0.5},
+	"Ge": {Material{color: color.RGBA{102, 146, 146, 255}}, 0.5},
+	"As": {Material{color: color.RGBA{190, 129, 227, 255}}, 0.5},
+	"Se": {Material{color: color.RGBA{255, 162, 0, 255}}, 0.5},
+	"Br": {Material{color: color.RGBA{165, 42, 42, 255}}, 0.5},
+	"Kr": {Material{color: color.RGBA{93, 186, 209, 255}}, 0.5},
+	"Rb": {Material{color: color.RGBA{113, 46, 178, 255}}, 0.5},
+	"Sr": {Material{color: color.RGBA{0, 254, 0, 255}}, 0.5},
+	"Y":  {Material{color: color.RGBA{150, 253, 255, 255}}, 0.5},
+	"Zr": {Material{color: color.RGBA{150, 225, 225, 255}}, 0.5},
+	"Nb": {Material{color: color.RGBA{116, 195, 203, 255}}, 0.5},
+	"Mo": {Material{color: color.RGBA{85, 181, 183, 255}}, 0.5},
+	"Tc": {Material{color: color.RGBA{60, 159, 168, 255}}, 0.5},
+	"Ru": {Material{color: color.RGBA{35, 142, 151, 255}}, 0.5},
+	"Rh": {Material{color: color.RGBA{11, 124, 140, 255}}, 0.5},
+	"Pd": {Material{color: color.RGBA{0, 104, 134, 255}}, 0.5},
+	"Ag": {Material{color: color.RGBA{153, 198, 255, 255}}, 0.5},
+	"Cd": {Material{color: color.RGBA{255, 216, 145, 255}}, 0.5},
+	"In": {Material{color: color.RGBA{167, 118, 115, 255}}, 0.5},
+	"Sn": {Material{color: color.RGBA{102, 129, 129, 255}}, 0.5},
+	"Sb": {Material{color: color.RGBA{159, 101, 181, 255}}, 0.5},
+	"Te": {Material{color: color.RGBA{213, 123, 0, 255}}, 0.5},
+	"I":  {Material{color: color.RGBA{147, 0, 147, 255}}, 0.5},
+	"Xe": {Material{color: color.RGBA{66, 159, 176, 255}}, 0.5},
+	"Cs": {Material{color: color.RGBA{87, 25, 143, 255}}, 0.5},
+	"Ba": {Material{color: color.RGBA{0, 202, 0, 255}}, 0.5},
+	"La": {Material{color: color.RGBA{112, 222, 255, 255}}, 0.5},
+	"Ce": {Material{color: color.RGBA{255, 255, 200, 255}}, 0.5},
+	"Pr": {Material{color: color.RGBA{217, 255, 200, 255}}, 0.5},
+	"Nd": {Material{color: color.RGBA{198, 255, 200, 255}}, 0.5},
+	"Pm": {Material{color: color.RGBA{164, 255, 200, 255}}, 0.5},
+	"Sm": {Material{color: color.RGBA{146, 255, 200, 255}}, 0.5},
+	"Eu": {Material{color: color.RGBA{99, 255, 200, 255}}, 0.5},
+	"Gd": {Material{color: color.RGBA{71, 255, 200, 255}}, 0.5},
+	"Tb": {Material{color: color.RGBA{50, 255, 200, 255}}, 0.5},
+	"Dy": {Material{color: color.RGBA{31, 255, 183, 255}}, 0.5},
+	"Ho": {Material{color: color.RGBA{0, 254, 157, 255}}, 0.5},
+	"Er": {Material{color: color.RGBA{0, 230, 118, 255}}, 0.5},
+	"Tm": {Material{color: color.RGBA{0, 210, 83, 255}}, 0.5},
+	"Yb": {Material{color: color.RGBA{0, 191, 57, 255}}, 0.5},
+	"Lu": {Material{color: color.RGBA{0, 172, 35, 255}}, 0.5},
+	"Hf": {Material{color: color.RGBA{77, 194, 255, 255}}, 0.5},
+	"Ta": {Material{color: color.RGBA{77, 167, 255, 255}}, 0.5},
+	"W":  {Material{color: color.RGBA{39, 148, 214, 255}}, 0.5},
+	"Re": {Material{color: color.RGBA{39, 126, 172, 255}}, 0.5},
+	"Os": {Material{color: color.RGBA{39, 104, 151, 255}}, 0.5},
+	"Ir": {Material{color: color.RGBA{24, 85, 135, 255}}, 0.5},
+	"Pt": {Material{color: color.RGBA{24, 91, 145, 255}}, 0.5},
+	"Au": {Material{color: color.RGBA{255, 209, 36, 255}}, 0.5},
+	"Hg": {Material{color: color.RGBA{181, 181, 195, 255}}, 0.5},
+	"Tl": {Material{color: color.RGBA{167, 85, 77, 255}}, 0.5},
+	"Pb": {Material{color: color.RGBA{87, 90, 96, 255}}, 0.5},
+	"Bi": {Material{color: color.RGBA{159, 79, 181, 255}}, 0.5},
+	"Po": {Material{color: color.RGBA{172, 93, 0, 255}}, 0.5},
+	"At": {Material{color: color.RGBA{118, 79, 69, 255}}, 0.5},
+	"Rn": {Material{color: color.RGBA{66, 132, 151, 255}}, 0.5},
+	"Fr": {Material{color: color.RGBA{66, 0, 102, 255}}, 0.5},
+	"Ra": {Material{color: color.RGBA{0, 123, 0, 255}}, 0.5},
+	"Ac": {Material{color: color.RGBA{113, 170, 252, 255}}, 0.5},
+	"Th": {Material{color: color.RGBA{0, 186, 255, 255}}, 0.5},
+	"Pa": {Material{color: color.RGBA{0, 160, 255, 255}}, 0.5},
+	"U":  {Material{color: color.RGBA{0, 145, 255, 255}}, 0.5},
+	"Np": {Material{color: color.RGBA{0, 128, 242, 255}}, 0.5},
+	"Pu": {Material{color: color.RGBA{0, 106, 242, 255}}, 0.5},
+	"Am": {Material{color: color.RGBA{85, 91, 242, 255}}, 0.5},
+	"Cm": {Material{color: color.RGBA{120, 91, 227, 255}}, 0.5},
+	"Bk": {Material{color: color.RGBA{137, 79, 227, 255}}, 0.5},
+	"Cf": {Material{color: color.RGBA{161, 55, 213, 255}}, 0.5},
+	"Es": {Material{color: color.RGBA{179, 31, 213, 255}}, 0.5},
+	"Fm": {Material{color: color.RGBA{179, 31, 186, 255}}, 0.5},
+	"Md": {Material{color: color.RGBA{179, 13, 167, 255}}, 0.5},
+	"No": {Material{color: color.RGBA{189, 13, 135, 255}}, 0.5},
+	"Lr": {Material{color: color.RGBA{201, 0, 102, 255}}, 0.5},
 }
