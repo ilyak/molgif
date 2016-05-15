@@ -56,6 +56,30 @@ func MatMat(m1 Mat, m2 Mat) Mat {
 	}
 }
 
+func (m *Mat) Scale(s float32) {
+	m.xx *= s
+	m.xy *= s
+	m.xz *= s
+	m.yx *= s
+	m.yy *= s
+	m.yz *= s
+	m.zx *= s
+	m.zy *= s
+	m.zz *= s
+}
+
+func (m *Mat) Add(b Mat) {
+	m.xx += b.xx
+	m.xy += b.xy
+	m.xz += b.xz
+	m.yx += b.yx
+	m.yy += b.yy
+	m.yz += b.yz
+	m.zx += b.zx
+	m.zy += b.zy
+	m.zz += b.zz
+}
+
 func MatRotX(angle float32) Mat {
 	s64, c64 := math.Sincos(float64(angle))
 	s := float32(s64)
@@ -89,6 +113,29 @@ func MatRotZ(angle float32) Mat {
 	}
 }
 
+func MatSkew(v Vec) Mat {
+	return Mat{
+		0, -v.z, v.y,
+		v.z, 0, -v.x,
+		-v.y, v.x, 0,
+	}
+}
+
+// Returns rotation matrix that aligns a with b
+// Vectors a and b must be normalized
+func MatAlignRot(a, b Vec) Mat {
+	v := VecCross(a, b)
+	s := v.Len()
+	c := VecDot(a, b)
+	x := MatSkew(v)
+	r := MatIdent()
+	r.Add(x)
+	x = MatMat(x, x)
+	x.Scale((1.0 - c) / (s * s))
+	r.Add(x)
+	return r
+}
+
 type Vec struct {
 	x, y, z float32
 }
@@ -113,6 +160,14 @@ func VecSub(a, b Vec) Vec {
 
 func VecDot(a, b Vec) float32 {
 	return a.x*b.x + a.y*b.y + a.z*b.z
+}
+
+func VecCross(a, b Vec) Vec {
+	return Vec{
+		a.y*b.z - a.z*b.y,
+		a.z*b.x - a.x*b.z,
+		a.x*b.y - a.y*b.x,
+	}
 }
 
 func VecScale(v Vec, s float32) Vec {
@@ -146,6 +201,10 @@ type Ray struct {
 	origin, dir Vec // dir is normalized
 }
 
+type Material struct {
+	diffuse color.RGBA
+}
+
 type Shape interface {
 	Intersect(Ray) (float32, Vec, Vec)
 	Material() Material
@@ -155,6 +214,13 @@ type Sphere struct {
 	pos      Vec
 	radius   float32
 	material Material
+}
+
+func NewSphere(pos Vec, radius float32) Sphere {
+	return Sphere{
+		pos:    pos,
+		radius: radius,
+	}
 }
 
 func (s *Sphere) Intersect(ray Ray) (float32, Vec, Vec) {
@@ -184,13 +250,20 @@ func (s *Sphere) Material() Material {
 }
 
 type Cylinder struct {
-	a, b     Vec
+	axis     Vec
+	bottom   Vec
 	radius   float32
 	material Material
 }
 
 func NewCylinder(a, b Vec, r float32) Cylinder {
-	return Cylinder{a, b, r, Material{}}
+	c := Cylinder{
+		axis:   VecSub(b, a),
+		bottom: a,
+		radius: r,
+	}
+	c.axis.Normalize()
+	return c
 }
 
 func (c *Cylinder) Intersect(ray Ray) (float32, Vec, Vec) {
@@ -238,10 +311,6 @@ type Bond struct {
 	a, b *Atom
 }
 
-type Material struct {
-	diffuse color.RGBA
-}
-
 type Molecule struct {
 	atoms []*Atom
 	bonds []*Bond
@@ -282,7 +351,8 @@ func (mol *Molecule) Rotate(rot Mat) {
 func (sc *Scene) UpdateGeometry() {
 	sc.shapes = nil
 	for _, a := range sc.mol.atoms {
-		p := Sphere{a.pos, sc.atomSize, Material{Elements[a.name]}}
+		p := NewSphere(a.pos, sc.atomSize)
+		p.material = Material{Elements[a.name]}
 		sc.shapes = append(sc.shapes, &p)
 	}
 	if sc.bondSize > 0.001 {
