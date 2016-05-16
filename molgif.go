@@ -205,6 +205,13 @@ type Material struct {
 	diffuse color.RGBA
 }
 
+func TestLineSphere(ray Ray, sp Vec, sr float32) bool {
+	l := VecSub(sp, ray.orig)
+	t := VecDot(ray.dir, l)
+	d := l.LenSq() - t*t
+	return d < sr*sr
+}
+
 type Shape interface {
 	FastIntersect(Ray) bool
 	Intersect(Ray) (float32, Vec, Vec)
@@ -225,7 +232,7 @@ func NewSphere(pos Vec, radius float32) Sphere {
 }
 
 func (s *Sphere) FastIntersect(ray Ray) bool {
-	return true
+	return TestLineSphere(ray, s.pos, s.radius)
 }
 
 func (s *Sphere) Intersect(ray Ray) (float32, Vec, Vec) {
@@ -255,11 +262,12 @@ func (s *Sphere) Material() Material {
 }
 
 type Cylinder struct {
-	axis     Vec
-	pos      Vec
-	radius   float32
-	halfz    float32
-	material Material
+	axis         Vec
+	pos          Vec
+	radius       float32
+	halfz        float32
+	sphereRadius float32
+	material     Material
 }
 
 func NewCylinder(a, b Vec, r float32) Cylinder {
@@ -269,12 +277,13 @@ func NewCylinder(a, b Vec, r float32) Cylinder {
 	c.pos.Scale(0.5)
 	c.axis = VecSub(b, a)
 	c.halfz = c.axis.Len() / 2
+	c.sphereRadius = float32(math.Sqrt(float64(r*r + c.halfz*c.halfz)))
 	c.axis.Normalize()
 	return c
 }
 
 func (c *Cylinder) FastIntersect(ray Ray) bool {
-	return true
+	return TestLineSphere(ray, c.pos, c.sphereRadius)
 }
 
 func (c *Cylinder) Intersect(ray Ray) (float32, Vec, Vec) {
@@ -480,7 +489,7 @@ type Scene struct {
 }
 
 func NewScene(mol *Molecule, w, h int) *Scene {
-	var r float32 = 1.0
+	var r float32
 	for _, a := range mol.atoms {
 		l := a.pos.Len()
 		if l > r {
@@ -489,7 +498,7 @@ func NewScene(mol *Molecule, w, h int) *Scene {
 	}
 	sc := Scene{
 		mol:  mol,
-		view: NewView(w, h, 3.0*r),
+		view: NewView(w, h, r+8),
 	}
 	sc.light = PointLight{Vec{1000, 500, -1000}}
 	return &sc
@@ -639,9 +648,12 @@ func main() {
 	if *dFlag < 0 {
 		log.Fatal("bond size must be positive")
 	}
+	if *aFlag < *dFlag {
+		*dFlag = *aFlag
+	}
 	inp := flag.Arg(0)
 	if inp == "" {
-		inp = "sample.xyz"
+		log.Fatal("specify input file name")
 	}
 	mol, err := NewMolecule(inp)
 	if err != nil {
