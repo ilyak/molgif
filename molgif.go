@@ -198,7 +198,7 @@ func (v *Vec) Normalize() {
 }
 
 type Ray struct {
-	origin, dir Vec // dir is normalized
+	orig, dir Vec // dir is normalized
 }
 
 type Material struct {
@@ -206,6 +206,7 @@ type Material struct {
 }
 
 type Shape interface {
+	FastIntersect(Ray) bool
 	Intersect(Ray) (float32, Vec, Vec)
 	Material() Material
 }
@@ -223,8 +224,12 @@ func NewSphere(pos Vec, radius float32) Sphere {
 	}
 }
 
+func (s *Sphere) FastIntersect(ray Ray) bool {
+	return true
+}
+
 func (s *Sphere) Intersect(ray Ray) (float32, Vec, Vec) {
-	l := VecSub(s.pos, ray.origin)
+	l := VecSub(s.pos, ray.orig)
 	tca := VecDot(ray.dir, l)
 	d2 := l.LenSq() - tca*tca
 	r2 := s.radius * s.radius
@@ -238,7 +243,7 @@ func (s *Sphere) Intersect(ray Ray) (float32, Vec, Vec) {
 	}
 	p := ray.dir
 	p.Scale(t)
-	p.Add(ray.origin)
+	p.Add(ray.orig)
 	n := p
 	n.Sub(s.pos)
 	n.Normalize()
@@ -251,23 +256,57 @@ func (s *Sphere) Material() Material {
 
 type Cylinder struct {
 	axis     Vec
-	bottom   Vec
+	pos      Vec
 	radius   float32
+	halfz    float32
 	material Material
 }
 
 func NewCylinder(a, b Vec, r float32) Cylinder {
-	c := Cylinder{
-		axis:   VecSub(b, a),
-		bottom: a,
-		radius: r,
-	}
+	c := Cylinder{}
+	c.radius = r
+	c.pos = VecAdd(a, b)
+	c.pos.Scale(0.5)
+	c.axis = VecSub(b, a)
+	c.halfz = c.axis.Len() / 2
 	c.axis.Normalize()
 	return c
 }
 
+func (c *Cylinder) FastIntersect(ray Ray) bool {
+	return true
+}
+
 func (c *Cylinder) Intersect(ray Ray) (float32, Vec, Vec) {
-	return math.MaxFloat32, Vec{}, Vec{}
+	rot := MatAlignRot(c.axis, Vec{0, 0, 1})
+	ray.dir = MatVec(rot, ray.dir)
+	ray.orig.Sub(c.pos)
+	ray.orig = MatVec(rot, ray.orig)
+	dd := ray.dir.x*ray.dir.x + ray.dir.y*ray.dir.y
+	oo := ray.orig.x*ray.orig.x + ray.orig.y*ray.orig.y
+	b := 2 * (ray.orig.x*ray.dir.x + ray.orig.y*ray.dir.y)
+	d := b*b - 4*dd*(oo-c.radius*c.radius)
+	if d < 0 {
+		return math.MaxFloat32, Vec{}, Vec{}
+	}
+	d = float32(math.Sqrt(float64(d)))
+	t := (-b - d) / (2 * dd)
+	if t < 0 {
+		t = (-b + d) / (2 * dd)
+	}
+	p := ray.dir
+	p.Scale(t)
+	p.Add(ray.orig)
+	if p.z < -c.halfz || p.z > c.halfz {
+		return math.MaxFloat32, Vec{}, Vec{}
+	}
+	n := Vec{p.x, p.y, 0}
+	rot = MatAlignRot(Vec{0, 0, 1}, c.axis)
+	p = MatVec(rot, p)
+	p.Add(c.pos)
+	n = MatVec(rot, n)
+	n.Normalize()
+	return t, p, n
 }
 
 func (c *Cylinder) Material() Material {
@@ -332,6 +371,9 @@ func (mol *Molecule) MakeBonds() {
 	mol.bonds = nil
 	for _, a := range mol.atoms {
 		for _, b := range mol.atoms {
+			if a.name == "H" && b.name == "H" {
+				continue
+			}
 			pa := a.pos
 			pb := b.pos
 			if d := VecSub(pa, pb); d.LenSq() < thresh*thresh {
@@ -458,6 +500,9 @@ func (sc *Scene) ComputePixel(x, y int) color.RGBA {
 	var zmin float32 = math.MaxFloat32
 	ray := sc.view.NewRay(x, y)
 	for _, s := range sc.shapes {
+		if !s.FastIntersect(ray) {
+			continue
+		}
 		z, v, n := s.Intersect(ray)
 		if z < zmin {
 			zmin = z
@@ -577,7 +622,7 @@ func main() {
 	gFlag := flag.Uint("g", 0, "background color green component")
 	bFlag := flag.Uint("b", 0, "background color blue component")
 	aFlag := flag.Float64("a", 0.4, "atom size")
-	dFlag := flag.Float64("d", 0.3, "bond size")
+	dFlag := flag.Float64("d", 0.2, "bond size")
 	flag.Parse()
 	if *wFlag < 1 || *hFlag < 1 {
 		log.Fatal("image width and height must be positive")
