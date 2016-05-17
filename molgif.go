@@ -341,8 +341,8 @@ func NewView(width, height int, dist float32) *View {
 }
 
 func (v *View) NewRay(x, y int) Ray {
-	dx := float32(x-v.width/2) / float32(v.width)
-	dy := float32(y-v.height/2) / float32(v.width)
+	dx := float32(x-v.width/2) / float32(v.height)
+	dy := float32(y-v.height/2) / float32(v.height)
 	dir := v.look
 	dir.Add(VecScale(v.right, dx))
 	dir.Add(VecScale(v.up, dy))
@@ -604,17 +604,23 @@ func RenderAll(sc *Scene, loopTime int, rotvec [3]float32) *gif.GIF {
 	rot = MatMat(rot, MatRotY(ang*rotvec[1]))
 	rot = MatMat(rot, MatRotZ(ang*rotvec[2]))
 	var g gif.GIF
+	fmt.Print("rendering")
 	for i := 0; i < nframes; i++ {
 		img := sc.Render()
 		g.Image = append(g.Image, MakePaletted(img))
 		g.Delay = append(g.Delay, 100/FPS)
 		sc.mol.Rotate(rot)
 		sc.UpdateGeometry()
+		if i%10 == 0 {
+			fmt.Print(".")
+		}
 	}
+	fmt.Println()
 	return &g
 }
 
 func main() {
+	log.SetFlags(0)
 	oFlag := flag.String("o", "", "output file name")
 	wFlag := flag.Int("w", 256, "output image width")
 	hFlag := flag.Int("h", 256, "output image height")
