@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"sync"
 )
@@ -205,11 +206,13 @@ type Material struct {
 	diffuse color.RGBA
 }
 
-func TestLineSphere(ray Ray, sp Vec, sr float32) bool {
-	l := VecSub(sp, ray.orig)
-	t := VecDot(ray.dir, l)
-	d := l.LenSq() - t*t
-	return d < sr*sr
+func TestLineSphere(ray *Ray, sp *Vec, sr float32) bool {
+	lx := sp.x - ray.orig.x
+	ly := sp.y - ray.orig.y
+	lz := sp.z - ray.orig.z
+	ll := lx*lx + ly*ly + lz*lz
+	dl := ray.dir.x*lx + ray.dir.y*ly + ray.dir.z*lz
+	return ll-dl*dl < sr*sr
 }
 
 type Shape interface {
@@ -232,7 +235,7 @@ func NewSphere(pos Vec, radius float32) Sphere {
 }
 
 func (s *Sphere) FastIntersect(ray Ray) bool {
-	return TestLineSphere(ray, s.pos, s.radius)
+	return TestLineSphere(&ray, &s.pos, s.radius)
 }
 
 func (s *Sphere) Intersect(ray Ray) (float32, Vec, Vec) {
@@ -262,11 +265,11 @@ func (s *Sphere) Material() Material {
 }
 
 type Cylinder struct {
-	axis         Vec
 	pos          Vec
+	sphereRadius float32
+	axis         Vec
 	radius       float32
 	halfz        float32
-	sphereRadius float32
 	material     Material
 }
 
@@ -283,7 +286,7 @@ func NewCylinder(a, b Vec, r float32) Cylinder {
 }
 
 func (c *Cylinder) FastIntersect(ray Ray) bool {
-	return TestLineSphere(ray, c.pos, c.sphereRadius)
+	return TestLineSphere(&ray, &c.pos, c.sphereRadius)
 }
 
 func (c *Cylinder) Intersect(ray Ray) (float32, Vec, Vec) {
@@ -622,6 +625,7 @@ func RenderAll(sc *Scene, loopTime int, rotvec [3]float32) *gif.GIF {
 func main() {
 	log.SetFlags(0)
 	oFlag := flag.String("o", "", "output file name")
+	eFlag := flag.String("e", "", "cpu profiling data file name")
 	wFlag := flag.Int("w", 256, "output image width")
 	hFlag := flag.Int("h", 256, "output image height")
 	tFlag := flag.Int("t", 2, "animation loop time in seconds")
@@ -639,6 +643,15 @@ func main() {
 	aFlag := flag.Float64("a", 0.4, "atom size")
 	dFlag := flag.Float64("d", 0.2, "bond size")
 	flag.Parse()
+	if *eFlag != "" {
+		f, err := os.Create(*eFlag)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 	if *wFlag < 1 || *hFlag < 1 {
 		log.Fatal("image width and height must be positive")
 	}
