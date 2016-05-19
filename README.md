@@ -17,7 +17,7 @@ directory with molgif source code and type:
 
     go build
 
-Molgif has no external dependencies and uses only on [Go](https://golang.org)
+Molgif has no external dependencies and uses only [Go](https://golang.org)
 standard library. Animation rendering is performed using ray-tracing. Rendering
 is done in parallel using multiple CPUs available on the system.
 
