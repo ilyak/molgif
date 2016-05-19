@@ -7,7 +7,7 @@ animations can be easily embedded into presentations, websites, wikipedia, and
 so forth.
 
 ![caffeine](caffeine.gif)
-![nanotube](nanotube.gif)
+![benzene](benzene.gif)
 
 ###Installation
 
@@ -30,17 +30,32 @@ To see the list of available command line flags with documentation, type:
 Below is a list of sample animations along with the molgif command used to
 create them.
 
-Caffeine molecule: `molgif caffeine.xyz`
+######Caffeine molecule
+
+`molgif caffeine.xyz`
+
 ![caffeine](caffeine.gif)
 
-Carbon nanotube: `molgif -w 500 nanotube.xyz`
+######Carbon nanotube
+
+`molgif -w 500 nanotube.xyz`
+
 ![nanotube](nanotube.gif)
 
-Water molecule: `molgif -r 200 -g 200 water.xyz`
+######Water molecule
+
+`molgif -r 200 -g 200 water.xyz`
+
 ![water](water.gif)
 
-Fullerene molecule: `molgif -r 255 -g 255 -b 255 -t 5 fullerene.xyz`
+######Fullerene molecule
+
+`molgif -r 255 -g 255 -b 255 -t 5 fullerene.xyz`
+
 ![fullerene](fullerene.gif)
 
-Cluster of 8 water molecules: `molgif -l cluster.xyz`
+######Cluster of 8 water molecules
+
+`molgif -l cluster.xyz`
+
 ![cluster](cluster.gif)
