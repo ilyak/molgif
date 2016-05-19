@@ -1,9 +1,10 @@
 #Molgif
 
-Molgif is an easy-to-use tool for creating [GIF](en.wikipedia.org/wiki/GIF)
-animations of molecules. Thanks to the widespread support of
-[GIF](en.wikipedia.org/wiki/GIF) file format, animations can be easily embedded
-into presentations, websites, wikipedia, and so forth.
+Molgif is an easy-to-use tool for creating
+[GIF](https://en.wikipedia.org/wiki/GIF) animations of molecules. Thanks to the
+widespread support of [GIF](https://en.wikipedia.org/wiki/GIF) file format,
+animations can be easily embedded into presentations, websites, wikipedia, and
+so forth.
 
 ![caffeine](caffeine.gif)
 ![nanotube](nanotube.gif)
@@ -11,14 +12,14 @@ into presentations, websites, wikipedia, and so forth.
 ###Installation
 
 Molgif works on Linux, BSD, OSX, Windows operating systems. Molgif requires
-[Go](golang.org) version 1.6 or later. To compile, change into the directory
-with molgif source code and type:
+[Go](https://golang.org) version 1.6 or later. To compile, change into the
+directory with molgif source code and type:
 
     go build
 
-Molgif has no external dependencies and uses only on [Go](golang.org) standard
-library. Animation rendering is performed using ray-tracing. Rendering is done
-in parallel using multiple CPUs available on the system.
+Molgif has no external dependencies and uses only on [Go](https://golang.org)
+standard library. Animation rendering is performed using ray-tracing. Rendering
+is done in parallel using multiple CPUs available on the system.
 
 ###Usage examples
 
