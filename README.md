@@ -36,6 +36,12 @@ create them.
 
 ![caffeine](caffeine.gif)
 
+######Benzene molecule
+
+`molgif -X -t 3 -a 0.2 benzene.xyz`
+
+![benzene](benzene.gif)
+
 ######Carbon nanotube
 
 `molgif -w 500 nanotube.xyz`
