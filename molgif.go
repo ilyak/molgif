@@ -607,7 +607,6 @@ func RenderAll(sc *Scene, loopTime int, rotvec [3]float32) *gif.GIF {
 	rot = MatMat(rot, MatRotY(ang*rotvec[1]))
 	rot = MatMat(rot, MatRotZ(ang*rotvec[2]))
 	var g gif.GIF
-	fmt.Print("rendering")
 	for i := 0; i < nframes; i++ {
 		img := sc.Render()
 		g.Image = append(g.Image, MakePaletted(img))
@@ -725,6 +724,7 @@ func main() {
 		if *ZFlag {
 			rotvec[2] = -1
 		}
+		fmt.Print(f.Name())
 		g := RenderAll(sc, *tFlag, rotvec)
 		if err = gif.EncodeAll(f, g); err != nil {
 			log.Fatal(err)
