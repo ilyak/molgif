@@ -44,7 +44,7 @@ create them.
 
 ######Carbon nanotube
 
-`molgif -w 500 nanotube.xyz`
+`molgif -w 500 -t 5 nanotube.xyz`
 
 ![nanotube](nanotube.gif)
 
