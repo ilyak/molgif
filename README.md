@@ -54,6 +54,12 @@ create them.
 
 ![water](water.gif)
 
+######TNT molecule
+
+`molgif -r 220 -g 220 tnt.xyz`
+
+![tnt](tnt.gif)
+
 ######Fullerene molecule
 
 `molgif -r 255 -g 255 -b 255 -t 5 fullerene.xyz`
