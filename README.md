@@ -71,3 +71,9 @@ create them.
 `molgif -l cluster.xyz`
 
 ![cluster](cluster.gif)
+
+######Adenine nucleobase
+
+`molgif -t 8 adenine.xyz`
+
+![adenine](adenine.gif)
