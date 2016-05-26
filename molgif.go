@@ -627,7 +627,7 @@ func main() {
 	eFlag := flag.String("e", "", "cpu profiling data file name")
 	wFlag := flag.Int("w", 256, "output image width")
 	hFlag := flag.Int("h", 256, "output image height")
-	tFlag := flag.Int("t", 2, "animation loop time in seconds")
+	tFlag := flag.Int("t", 3, "animation loop time in seconds")
 	xFlag := flag.Bool("x", false, "rotate along x axis")
 	yFlag := flag.Bool("y", false, "rotate along y axis")
 	zFlag := flag.Bool("z", false, "rotate along z axis")
