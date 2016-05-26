@@ -63,7 +63,7 @@ create them.
 
 ######Fullerene molecule
 
-`molgif -t 8 -g 100 -b 100 -a 0.3 fullerene.xyz`
+`molgif -Y -t 8 -g 100 -b 100 -a 0.3 fullerene.xyz`
 
 ![fullerene](fullerene.gif)
 
