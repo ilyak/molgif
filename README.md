@@ -7,6 +7,7 @@ animations can be easily embedded into presentations, websites, wikipedia, and
 so forth.
 
 ![caffeine](caffeine.gif)
+![fullerene](fullerene.gif)
 ![benzene](benzene.gif)
 
 ###Installation
@@ -62,7 +63,7 @@ create them.
 
 ######Fullerene molecule
 
-`molgif -r 255 -g 255 -b 255 -t 5 fullerene.xyz`
+`molgif -t 8 -g 100 -b 100 -a 0.3 fullerene.xyz`
 
 ![fullerene](fullerene.gif)
 
