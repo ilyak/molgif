@@ -13,7 +13,7 @@ so forth.
 ###Installation
 
 Molgif works on Linux, BSD, OSX, Windows operating systems. Molgif requires
-[Go](https://golang.org) version 1.6 or later. To compile, change into the
+[Go](https://golang.org) version 1.5 or later. To compile, change into the
 directory with molgif source code and type:
 
     go build
