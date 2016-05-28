@@ -51,7 +51,7 @@ create them.
 
 ######Water molecule
 
-`molgif -r 200 -g 200 water.xyz`
+`molgif -Y -r 80 -g 80 -b 80 water.xyz`
 
 ![water](water.gif)
 
@@ -66,12 +66,6 @@ create them.
 `molgif -Y -t 8 -g 100 -b 100 -a 0.3 fullerene.xyz`
 
 ![fullerene](fullerene.gif)
-
-######Cluster of 8 water molecules
-
-`molgif -l cluster.xyz`
-
-![cluster](cluster.gif)
 
 ######Adenine nucleobase
 
