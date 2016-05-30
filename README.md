@@ -72,3 +72,9 @@ create them.
 `molgif -t 8 adenine.xyz`
 
 ![adenine](adenine.gif)
+
+######Guanine nucleobase
+
+`molgif guanine.xyz`
+
+![guanine](guanine.gif)
