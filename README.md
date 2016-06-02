@@ -67,14 +67,10 @@ create them.
 
 ![fullerene](fullerene.gif)
 
-######Adenine nucleobase
+######Adenine and Guanine nucleobases
 
-`molgif -t 8 adenine.xyz`
+> molgif -t 8 adenine.xyz
+> molgif guanine.xyz
 
 ![adenine](adenine.gif)
-
-######Guanine nucleobase
-
-`molgif guanine.xyz`
-
 ![guanine](guanine.gif)
