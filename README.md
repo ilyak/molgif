@@ -69,8 +69,8 @@ create them.
 
 ######Adenine and Guanine nucleobases
 
-> molgif -t 8 adenine.xyz
-> molgif guanine.xyz
+    molgif -t 8 adenine.xyz
+    molgif guanine.xyz
 
 ![adenine](adenine.gif)
 ![guanine](guanine.gif)
