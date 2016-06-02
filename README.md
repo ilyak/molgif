@@ -33,37 +33,37 @@ create them.
 
 ######Caffeine molecule
 
-`molgif caffeine.xyz`
+    molgif caffeine.xyz
 
 ![caffeine](caffeine.gif)
 
 ######Benzene molecule
 
-`molgif -X -t 3 -a 0.2 benzene.xyz`
+    molgif -X -t 3 -a 0.2 benzene.xyz
 
 ![benzene](benzene.gif)
 
 ######Carbon nanotube
 
-`molgif -w 500 -t 5 nanotube.xyz`
+    molgif -w 500 -t 5 nanotube.xyz
 
 ![nanotube](nanotube.gif)
 
 ######Water molecule
 
-`molgif -Y -r 80 -g 80 -b 80 water.xyz`
+    molgif -Y -r 80 -g 80 -b 80 water.xyz
 
 ![water](water.gif)
 
 ######TNT molecule
 
-`molgif -r 220 -g 220 tnt.xyz`
+    molgif -r 220 -g 220 tnt.xyz
 
 ![tnt](tnt.gif)
 
 ######Fullerene molecule
 
-`molgif -Y -t 8 -g 100 -b 100 -a 0.3 fullerene.xyz`
+    molgif -Y -t 8 -g 100 -b 100 -a 0.3 fullerene.xyz
 
 ![fullerene](fullerene.gif)
 
