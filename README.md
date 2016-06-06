@@ -49,7 +49,7 @@ create them.
 
 ![nanotube](nanotube.gif)
 
-######Water molecule
+######Water cluster
 
     molgif -Y -t 5 -r 80 -g 80 -b 80 water.xyz
 
