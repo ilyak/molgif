@@ -39,7 +39,7 @@ create them.
 
 ######Benzene molecule
 
-    molgif -X -t 3 -a 0.2 benzene.xyz
+    molgif -X -a 0.2 benzene.xyz
 
 ![benzene](benzene.gif)
 
