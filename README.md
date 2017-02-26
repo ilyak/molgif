@@ -13,10 +13,10 @@ so forth.
 ###Installation
 
 Molgif works on Linux, BSD, OSX, Windows operating systems. Molgif requires
-[Go](https://golang.org) version 1.5 or later. To compile, change into the
-directory with molgif source code and type:
+[Go](https://golang.org) version 1.5 or later. To download and compile
+the code, issue:
 
-    go build
+    go get github.com/ilyak/molgif
 
 Molgif has no external dependencies and uses only [Go](https://golang.org)
 standard library. Animation rendering is performed using ray-tracing. Rendering
