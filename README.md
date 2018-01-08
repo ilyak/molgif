@@ -22,11 +22,31 @@ Molgif has no external dependencies and uses only [Go](https://golang.org)
 standard library. Animation rendering is performed using ray-tracing. Rendering
 is done in parallel using multiple CPUs available on the system.
 
-### Usage examples
+### Usage
 
-To see the list of available command line flags with documentation, type:
+List of available command-line flags with documentation can be obtained with
+`molgif -help`:
 
-    molgif -help
+    -X            rotate along x axis in reverse
+    -Y            rotate along y axis in reverse
+    -Z            rotate along z axis in reverse
+    -a float      atom size (default 0.4)
+    -b uint       background color blue component
+    -d float      bond size (default 0.2)
+    -e string     cpu profiling data file name
+    -g uint       background color green component
+    -h int        output image height (default 256)
+    -l            hide molgif banner
+    -o string     output file name
+    -p            render image in png format
+    -r uint       background color red component
+    -t int        animation loop time in seconds (default 3)
+    -w int        output image width (default 256)
+    -x            rotate along x axis
+    -y            rotate along y axis
+    -z            rotate along z axis
+
+### Samples
 
 Below is a list of sample animations along with the molgif command used to
 create them.
